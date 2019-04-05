@@ -1,11 +1,11 @@
-## Methods To Be Deployed:
-### Split workload into several pieces.
-### fine-grained schedule in each stage.
-### coarse-grained schedule between stages and pipelines.
-### peephole optimizations to reduce io (or fuse several instrutions into one).
+Methods To Be Deployed:
+* Split workload into several pieces.
+* fine-grained schedule in each stage.
+* coarse-grained schedule between stages and pipelines.
+* peephole optimizations to reduce io (or fuse several instrutions into one).
 
 
-## Scenario:
+Scenario:
 For GPU Processors, tasks could be devided into several subtasks. Commonly, Each subtask (pipeline) is made up with three stages, e.g. Load, compute and store.
 Operations among stages(StageWorkLoad) should be executed in order, While Operations in each Stage could be executed orderly or disorderly. For instance, In loading stage, two block of data need to be loaded. For data A, it should be firstly loaded from global memory into shared memory(op1), and then loaded from shared memory into local memory(op2). For data B, it should be loaded from global memory into local memory directly.
 
@@ -13,3 +13,16 @@ Data A: [ global memory ] --(op1)--> [ shared memory ]  --(op2)--> [ local memor
 Data B: [ global memory ] ----------------(op3)------------------> [ local memory ]
 
 Suppose opx could be conducted by DMAx, op1 or op2 could be loaded parallelly with op3. Since there exists data conflict between op1 and op2, op2 must be conducted after op1.
+
+
+Comparsion Metrics could be used:
+* Running time of the Algorithms
+* Number of Occurrences of Better Quality of Schedules.
+* Speedup: the ratio of sequential executation times to makespan.
+* Schedule Length Ratio(SLR): the ratio of makespan to the summation of computation costs for tasks in critical path.
+* efficiency: speedup and makespan ratio.
+
+
+Model Structure:
+In our model, there are several types of function units, in which each type only support one kind of operation. A processor may include more than one function unit for each type. All function unit are connectted with configurable bandwidth. But the bandwidths between same kind of fu are the same. The number of function units and the type of each function unit can be configed by hardware designers.
+And a task(neural-network) is abstracted as several operations with data dependence among operations, and one specific layer could be reckoned by one kind of fu.

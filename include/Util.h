@@ -1,5 +1,5 @@
-#ifndef INCLUDE_UTIL_H_
-#define INCLUDE_UTIL_H_
+#ifndef PIPELINESCHEDULE_UTIL_H_
+#define PIPELINESCHEDULE_UTIL_H_
 
 #define GET_ACCESS(TYPE, NAME, FIELD) \
   TYPE get##NAME() const {            \
@@ -25,4 +25,4 @@
   std::cout << "[" << __FILE__ << ":" << __FUNCTION__ << "] unimplemented." << std::endl; \
   assert(0);
 
-#endif  // INCLUDE_UTIL_H_
+#endif  // PIPELINESCHEDULE_UTIL_H_

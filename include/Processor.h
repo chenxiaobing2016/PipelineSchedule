@@ -5,6 +5,18 @@
 
 #include "Util.h"
 
+enum OperationType{
+  INPUT = 0,
+  OUTPUT = 1,
+  EMPTY = 2,
+  CONV = 3,
+  POOL = 4,
+  FC = 5,
+  ACTIVE = 6,
+  BINARY = 7,
+  CONCAT = 8,
+  SLICE = 9
+};
 struct Operation {
   int id;
   float min_size;

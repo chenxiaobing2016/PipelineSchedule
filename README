@@ -26,3 +26,12 @@ Comparsion Metrics could be used:
 Model Structure:
 In our model, there are several types of function units, in which each type only support one kind of operation. A processor may include more than one function unit for each type. All function unit are connectted with configurable bandwidth. But the bandwidths between same kind of fu are the same. The number of function units and the type of each function unit can be configed by hardware designers.
 And a task(neural-network) is abstracted as several operations with data dependence among operations, and one specific layer could be reckoned by one kind of fu.
+
+Random Graph Generator Parameters:
+* Number of original task graph (v)
+* Shape paramter of the graph (alpha).
+  The height of graph is generated randomly from a uniform distribution with a mean value equal to (sqrt(v) / alpha), and the width of each level is randomly generated from another uniform distribution with a mean value (sqrt(v) * alpha).
+* out degree of each node.
+* Communication to Computation ratio(CCR).
+* Heterogeneity of processors (beta).
+  Suppose a_w is the average computation cost,  the average computation cost of a function unit is randomly generated from a uniform distribution from [0, 2 * avg], the computation cost of each task ti on processor pj is randomly set from the range [wj*(1-beta/2), wj*(1+beta/2)]

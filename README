@@ -35,3 +35,15 @@ Random Graph Generator Parameters:
 * Communication to Computation ratio(CCR).
 * Heterogeneity of processors (beta).
   Suppose a_w is the average computation cost,  the average computation cost of a function unit is randomly generated from a uniform distribution from [0, 2 * avg], the computation cost of each task ti on processor pj is randomly set from the range [wj*(1-beta/2), wj*(1+beta/2)]
+
+
+New Random Graph Generator Paramters:
+* height of the graph (height)
+* width of the graph (width)
+* the initial input size (input_size)
+* the out degree of concat and slice (out_degree)
+* the shrink rate of conv, fc, pool, and other layers shrink rate is 1 (out_rate)
+
+Processor Generater:
+* for a given graph, the average of compute rate of one kind of processor is positive relate with average size of responded layers in the graph, the positive ratio (P);
+* Communication to Computation ratio of specific kinds of processor(CCR).

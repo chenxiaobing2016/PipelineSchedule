@@ -4,9 +4,19 @@
 
 class Generator {
 public:
-  Generator(int h, int w, int o_d, int o_r) : height(h), width(w), out_degree(o_d), out_rate(o_r) {}
+  Generator(float i_s, int h, int w, int o_d, float o_r,
+            float s_r, float ccr)
+            : input_size(i_s), height(h), width(w), out_degree(o_d), out_rate(o_r),
+              speed_rate(ccr), ccr(ccr) {}
 
-  std::vector<Task> genTaskDAG();
+  // generate random task dag
+  void genRandomTaskDAG();
+
+  // generate specific nn task dag
+  void genNNTaskDAG(NetType nn);
+
+  // generate speed table relate to hardwares
+  void genSpeedTable();
 
   // void setHeight(int h);
   // int getHeight();
@@ -18,14 +28,28 @@ public:
   // float getOutRate();
 
 private:
-  struct OpGrid{
-    OperationType ot;
-    std::vector<int> pres;
-    std::vector<int> sucs;
-  };
-  float input_size;
-  int height;
-  int width;
-  int out_degree;
-  float out_rate;
+    // parameters for tasks
+    struct OpGrid{
+        OperationType ot;
+        std::vector<int> pres;
+        std::vector<int> sucs;
+    };
+    float input_size;
+    int height;
+    int width;
+    int out_degree;
+    float out_rate;
+
+    // parameters speed tables
+    float speed_rate;  // given operation type: speed_rate = theory fu speed / average task input size
+                       // true fu speed = sample from [0.5 * theory, 1.5 * theory]
+                       // ps: 1. fu with same op, speed should be equal
+                       //     2. for a never appeared layer in given graph, average task input size = input_size
+                       //     3. for input and output not be bottleneck, their fu speed is FLT_MAX
+    float ccr;  // given src and dst fu, ccr = theory communicate speed / avg(src theory fu speed, dst theory fu speed)
+                // true communicate speed = sample from [0.5 * theory, 1.5 * theory]
+
+    std::vector<Task> tasks;  // task linked list
+    std::vector<float> fu_speed_table;  // size: #operationtype * 1
+    std::vector<std::vector<float>> comm_speed_table; // size: #operationtype * #operationtype
 };

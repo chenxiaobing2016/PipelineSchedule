@@ -2,12 +2,14 @@
 #include <vector>
 #include <random>
 #include <algorithm>
+#include <float.h>
 
 #include "Processor.h"
 #include "Generator.h"
 using namespace std;
 
-vector<Task> Generator::genTaskDAG() {
+void Generator::genRandomTaskDAG() {
+  tasks.clear();
   default_random_engine e;
   vector<vector<OpGrid>> DAG(height, vector<OpGrid> (width));
   for (auto h_idx = 0; h_idx < height; h_idx++) {
@@ -91,13 +93,12 @@ vector<Task> Generator::genTaskDAG() {
   }
 
 
-  // translate Opgrids to Tasks
-  vector<Task> Tasks;
+  // translate Opgrids to tasks
   Task input;
   input.op.type = OperationType::INPUT;
   input.in_size = input_size;
   input.out_size = input_size;
-  Tasks.push_back(input);
+  tasks.push_back(input);
   for (auto h_idx = 0; h_idx < height; h_idx++) {
       for (auto w_idx = 0; w_idx < width; w_idx++) {
           auto p = &DAG[h_idx][w_idx];
@@ -105,33 +106,33 @@ vector<Task> Generator::genTaskDAG() {
           task.op.type = p->ot;
           for (auto in_idx = 0; in_idx < p->pres.size(); in_idx++) {
               if(h_idx == 0) {
-                  task.precursors.push_back(&Tasks[0]);
-                  Tasks[0].successors.push_back(&task);
+                  task.precursors.push_back(&tasks[0]);
+                  tasks[0].successors.push_back(&task);
               } else {
-                  task.precursors.push_back(&Tasks[p->pres[in_idx] + 1]);
-                  Tasks[p->pres[in_idx] + 1].successors.push_back(&task);
+                  task.precursors.push_back(&tasks[p->pres[in_idx] + 1]);
+                  tasks[p->pres[in_idx] + 1].successors.push_back(&task);
               }
           }
-          Tasks.push_back(task);
+          tasks.push_back(task);
       }
   }
   Task output;
   output.op.type = OperationType::OUTPUT;
   for (auto w_idx = 0; w_idx < width; w_idx++) {
-      output.precursors.push_back(&Tasks[Tasks.size() - (w_idx + 1)]);
-      Tasks[Tasks.size() - (w_idx + 1)].successors.push_back(&output);
+      output.precursors.push_back(&tasks[tasks.size() - (w_idx + 1)]);
+      tasks[tasks.size() - (w_idx + 1)].successors.push_back(&output);
   }
-  Tasks.push_back(output);
+  tasks.push_back(output);
 
   // traverse from top to bottom for set size
-  for (auto task_idx = 1; task_idx < Tasks.size(); task_idx++) {
+  for (auto task_idx = 1; task_idx < tasks.size(); task_idx++) {
       float whole_in_size = 0;
-      for (auto in_iter : Tasks[task_idx].precursors) {
+      for (auto in_iter : tasks[task_idx].precursors) {
           whole_in_size += in_iter->out_size;
       }
-      Tasks[task_idx].in_size = whole_in_size;
+      tasks[task_idx].in_size = whole_in_size;
       float whole_out_size;
-      switch(Tasks[task_idx].op.type) {
+      switch(tasks[task_idx].op.type) {
           case OperationType::CONV:
           case OperationType::FC:
           case OperationType::POOL:
@@ -144,11 +145,46 @@ vector<Task> Generator::genTaskDAG() {
               whole_out_size = whole_in_size;
               break;
           case OperationType::SLICE:
-              whole_out_size = whole_in_size / Tasks[task_idx].successors.size();
+              whole_out_size = whole_in_size / tasks[task_idx].successors.size();
               break;
           default:
               break;
       }
   }
-  return Tasks;
+}
+
+void Generator::genSpeedTable() {
+    fu_speed_table.clear();
+    comm_speed_table.clear();
+    random_device rd;  // Will be used to obtain a seed for the random number engine
+    mt19937 gen(rd());  // Standard mersenne_twister_engine seeded with rd()
+    uniform_real_distribution<> dis1(0.5, 1.5);
+    int op_type_nr = 9;
+    vector<float> op_size_vec(op_type_nr, input_size);
+    vector<int> op_nr_vec(op_type_nr, 1);
+
+    for (auto task_idx = 0; task_idx < tasks.size(); task_idx++) {
+        op_nr_vec[(unsigned int)(tasks[task_idx].op.type)] ++;
+        op_size_vec[(unsigned int)(tasks[task_idx].op.type)] += tasks[task_idx].in_size;
+    }
+
+    for (auto op_idx = 0; op_idx < op_type_nr; op_idx++) {
+        float theory_fu_speed = speed_rate * op_size_vec[op_idx] / op_nr_vec[op_idx];
+        float true_speed = dis1(gen) * theory_fu_speed;
+        if (op_idx == 0 || op_idx == op_type_nr - 1)
+            true_speed = FLT_MAX;
+        fu_speed_table.push_back(true_speed);
+    }
+
+    for (auto op_idx_i = 0; op_idx_i < op_type_nr; op_idx_i++) {
+        vector<float> src_i;
+        float src_thr_fu_speed = speed_rate * op_size_vec[op_idx_i] / op_nr_vec[op_idx_i];
+        for (auto op_idx_j = 0; op_idx_j < op_type_nr; op_idx_j++) {
+            float dst_thr_fu_speed = speed_rate * op_size_vec[op_idx_j] / op_nr_vec[op_idx_j];
+            float theory_comm_speed = ccr * (src_thr_fu_speed + dst_thr_fu_speed) / 2;
+            float true_comm_speed = dis1(gen) * theory_comm_speed;
+            src_i.push_back(true_comm_speed);
+        }
+        comm_speed_table.push_back(src_i);
+    }
 }

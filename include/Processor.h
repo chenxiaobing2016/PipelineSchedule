@@ -4,6 +4,13 @@
 #include <vector>
 
 #include "Util.h"
+enum NetType {
+    LENET,
+    ALEXNET,
+    VGG,
+    GOOGLENET,
+    RESNET
+};
 
 enum OperationType{
   INPUT = 0,

@@ -8,17 +8,17 @@
 enum OperationType{
   INPUT = 0,
   OUTPUT = 1,
-  EMPTY = 2,
-  CONV = 3,
-  POOL = 4,
-  FC = 5,
-  ACTIVE = 6,
-  BINARY = 7,
-  CONCAT = 8,
-  SLICE = 9
+  // EMPTY = 2,
+  CONV = 2,
+  POOL = 3,
+  FC = 4,
+  ACTIVE = 5,
+  BINARY = 6,
+  CONCAT = 7,
+  SLICE = 8
 };
 struct Operation {
-  int id;
+  OperationType type;
   float min_size;
 };
 
@@ -34,7 +34,8 @@ struct Processor {
 
 struct Task {
   float in_size;
-  std::function<float(float)> in_out;
+  float out_size;
+  // std::function<float(float)> in_out;
   std::vector<Task*> precursors;
   std::vector<Task*> successors;
   Operation op;

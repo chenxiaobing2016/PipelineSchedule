@@ -8,14 +8,14 @@ public:
 
   std::vector<Task> genTaskDAG();
 
-  void setHeight(int h);
-  int getHeight();
-  void setWidth(int w);
-  int getWidth();
-  void setOutDegree(int o_d);
-  int getOutDegree();
-  void setOutRate(int o_r);
-  float getOutRate();
+  // void setHeight(int h);
+  // int getHeight();
+  // void setWidth(int w);
+  // int getWidth();
+  // void setOutDegree(int o_d);
+  // int getOutDegree();
+  // void setOutRate(int o_r);
+  // float getOutRate();
 
 private:
   struct OpGrid{
@@ -23,9 +23,9 @@ private:
     std::vector<int> pres;
     std::vector<int> sucs;
   };
-  int input_size;
+  float input_size;
   int height;
   int width;
   int out_degree;
   float out_rate;
-}
+};

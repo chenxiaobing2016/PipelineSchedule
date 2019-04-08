@@ -2,6 +2,7 @@
 
 #include "Processor.h"
 
+/*
 class Generator {
 public:
   Generator(float i_s, int h, int w, int o_d, float o_r,
@@ -12,7 +13,6 @@ public:
   // generate random task dag
   void genRandomTaskDAG();
 
-  // generate specific nn task dag
   void genNNTaskDAG(NetType nn);
 
   // generate speed table relate to hardwares
@@ -53,3 +53,4 @@ private:
     std::vector<float> fu_speed_table;  // size: #operationtype * 1
     std::vector<std::vector<float>> comm_speed_table; // size: #operationtype * #operationtype
 };
+ */

@@ -8,6 +8,7 @@
 #include "Generator.h"
 using namespace std;
 
+/*
 void Generator::genRandomTaskDAG() {
   tasks.clear();
   default_random_engine e;
@@ -188,3 +189,4 @@ void Generator::genSpeedTable() {
         comm_speed_table.push_back(src_i);
     }
 }
+ */

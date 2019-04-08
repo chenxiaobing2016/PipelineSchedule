@@ -6,17 +6,24 @@
 class Generator {
 public:
   Generator(float i_s, int h, int w, int o_d, float o_r,
-            float s_r, float ccr)
+            float s_r = 1, float ccr = 1)
             : input_size(i_s), height(h), width(w), out_degree(o_d), out_rate(o_r),
               speed_rate(ccr), ccr(ccr) {}
 
   // generate random task dag
   void genRandomTaskDAG();
 
+  // print TaskDAG
+  void printTaskDAG();
+
+  // generate specific nn task dag
   void genNNTaskDAG(NetType nn);
 
   // generate speed table relate to hardwares
   void genSpeedTable();
+
+  // printSpeedTable
+  void printSpeedTable();
 
   // void setHeight(int h);
   // int getHeight();

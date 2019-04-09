@@ -1,29 +1,40 @@
+#include <iostream>
+#include <string>
 #include <vector>
+#include <random>
+#include <algorithm>
+#include <cassert>
+#include <float.h>
+#include <math.h>
 
 #include "Processor.h"
 
-/*
 class Generator {
 public:
-  Generator(float i_s, int h, int w, int o_d, float o_r,
-            float s_r = 1, float ccr = 1)
-            : input_size(i_s), height(h), width(w), out_degree(o_d), out_rate(o_r),
-              speed_rate(ccr), ccr(ccr) {}
+  Generator(float i_s_, int v_, float alpha_, int task_graph_nr_, int o_d, float o_r,
+            float s_r_ = 1, float ccr_ = 1)
+            : input_size(i_s_), v(v_), alpha(alpha_), out_degree(o_d), out_rate(o_r),
+              speed_rate(ccr_), ccr(ccr_) {}
+  // generate a random task dag
+  void genRandomTaskDAG(int height, int width);
 
-  // generate random task dag
-  void genRandomTaskDAG();
+  // generate a group of random task dag
+  void genRandomTaskDAGs();
 
   // print TaskDAG
-  void printTaskDAG();
+  void printTaskDAGs();
 
   // generate specific nn task dag
   void genNNTaskDAG(NetType nn);
 
   // generate speed table relate to hardwares
-  void genSpeedTable();
+  void genSpeedTable(Processor &processor);
 
   // printSpeedTable
-  void printSpeedTable();
+  void printSpeedTable(Processor processor);
+
+  // utils
+  std::string opTypeToName(OperationType ot);
 
   // void setHeight(int h);
   // int getHeight();
@@ -37,13 +48,17 @@ public:
 private:
     // parameters for tasks
     struct OpGrid{
+        int id;
         OperationType ot;
         std::vector<int> pres;
         std::vector<int> sucs;
     };
     float input_size;
-    int height;
-    int width;
+    int v;
+    float alpha;
+    int task_graph_nr;
+    // int height;
+    // int width;
     int out_degree;
     float out_rate;
 
@@ -56,8 +71,8 @@ private:
     float ccr;  // given src and dst fu, ccr = theory communicate speed / avg(src theory fu speed, dst theory fu speed)
                 // true communicate speed = sample from [0.5 * theory, 1.5 * theory]
 
-    std::vector<Task> tasks;  // task linked list
-    std::vector<float> fu_speed_table;  // size: #operationtype * 1
-    std::vector<std::vector<float>> comm_speed_table; // size: #operationtype * #operationtype
+    // std::vector<Task> tasks;  // task linked list
+    std::vector<TaskGraph> task_graphs;
+    // std::vector<float> fu_speed_table;  // size: #operationtype * 1
+    // std::vector<std::vector<float>> comm_speed_table; // size: #operationtype * #operationtype
 };
- */

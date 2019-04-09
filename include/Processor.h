@@ -17,14 +17,14 @@ enum NetType {
 enum OperationType {
   INPUT = 0,
   OUTPUT = 1,
-  EMPTY = 2,
-  CONV = 3,
-  POOL = 4,
-  FC = 5,
-  ACTIVE = 6,
-  BINARY = 7,
-  CONCAT = 8,
-  SLICE = 9
+  CONV = 2,
+  POOL = 3,
+  FC = 4,
+  ACTIVE = 5,
+  BINARY = 6,
+  CONCAT = 7,
+  SLICE = 8,
+  EMPTY = 9
 };
 struct Operation {
   OperationType type;
@@ -48,17 +48,17 @@ struct Processor {
   std::vector<std::vector<float>> bandwith;
 
   // assisted data structure.
-  std::unordered_map<OperationType, std::vector<unsigned>> opt_fu_idx;
-  void setOperatorType2FuIdx() {
-    static bool has_set = false;
-    if (!has_set) {
-      has_set = true;
-      for (auto idx = 0u; idx < fu_info.size(); ++idx) {
-        OperationType opt = fu_info[idx].op.type;
-        opt_fu_idx[opt].push_back(idx);
-      }
-    }
-  }
+  // std::unordered_map<OperationType, std::vector<unsigned>> opt_fu_idx;
+  // void setOperatorType2FuIdx() {
+  //   static bool has_set = false;
+  //   if (!has_set) {
+  //     has_set = true;
+  //     for (auto idx = 0u; idx < fu_info.size(); ++idx) {
+  //       OperationType opt = fu_info[idx].op.type;
+  //       opt_fu_idx[opt].push_back(idx);
+  //     }
+  //   }
+  // }
 };
 
 struct TaskNode {

@@ -29,7 +29,7 @@ void Generator::genRandomTaskDAG(int height, int width) {
           do {
               float sample = dis_0_0_1_0(gen);
               if (sample < threshold)
-                  type = op_type(gen) % 7 + 3;
+                  type = op_type(gen) % 7 + 2;
               else
                   type = OperationType::EMPTY;
               if (h_idx > 0 || (OperationType)type != OperationType::EMPTY)
@@ -403,9 +403,10 @@ void Generator::genSpeedTable(Processor &processor) {
             op_size_vec[(unsigned int)task.op.type] += task.in_size;
         }
     }
+    assert(op_nr_vec.back() == 1);
     for (auto op_idx = 0; op_idx < op_type_nr; op_idx++) {
         float theory_fu_speed = speed_rate * op_size_vec[op_idx] / op_nr_vec[op_idx];
-        if (op_idx == 0 || op_idx == op_type_nr - 1)
+        if (op_idx == (int)INPUT || op_idx == (int)OUTPUT)
             theory_fu_speed = FLT_MAX;
         fu_theory_speed_table[op_idx] = theory_fu_speed;
     }
@@ -444,9 +445,9 @@ void Generator::printSpeedTable(Processor processor) {
         cout <<" speed: " << processor.fu_info[fu_idx].speed << endl;
         cout << "bandwidth: ";
         for (auto dst_fu_idx = 0; dst_fu_idx < processor.fu_info.size(); dst_fu_idx++) {
-            cout << " " << processor.bandwith[fu_idx][dst_fu_idx] << "\t ";
+            cout << dst_fu_idx << "->" << processor.bandwith[fu_idx][dst_fu_idx] << " ";
         }
-        cout << endl;
+        cout << "\n" << endl;
     }
 }
 std::string Generator::opTypeToName(OperationType ot) {

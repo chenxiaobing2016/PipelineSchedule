@@ -38,6 +38,9 @@ struct Operation {
 struct FU {
   float speed;
   Operation op;
+
+  std::vector<unsigned> task_idx;
+  std::vector<float> start_time, finish_time;
 };
 
 struct Processor {
@@ -52,7 +55,7 @@ struct Processor {
       has_set = true;
       for (auto idx = 0u; idx < fu_info.size(); ++idx) {
         OperationType opt = fu_info[idx].op.type;
-        opt_fu_idx[opt] = idx;
+        opt_fu_idx[opt].push_back(idx);
       }
     }
   }
@@ -62,6 +65,10 @@ struct TaskNode {
   float in_size;
   float out_size;
   Operation op;
+
+  // assisted data structure.
+  unsigned fu_idx;
+  unsigned start_time, finish_time;
 };
 
 struct TaskGraph {
@@ -70,9 +77,6 @@ struct TaskGraph {
 
 
   // assisted data structure.
-  unsigned fu_idx;
-  unsigned start_time, end_time;
-
   bool existDependence(unsigned a, unsigned b) {
     return isAncestor(a, b) || isAncestor(b, a);
   }

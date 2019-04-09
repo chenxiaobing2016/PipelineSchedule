@@ -14,6 +14,7 @@ public:
     reckonAvgCommCost();
     reckonUpwardRank();
     sortByUpwardRank();
+    schedule();
   }
 
 private:
@@ -112,12 +113,73 @@ private:
   void schedule() {
     auto tasks = tg_.tasks;
     unsigned task_nr = tasks.size();
+
     std::vector<std::vector<unsigned>> fu2task_idx(p_.fu_info.size(), std::vector<unsigned>());
     for (unsigned task_idx = 0; task_idx < task_nr; ++task_idx) {
       auto opt = tasks[task_idx].op.type;
       std::vector<unsigned> fu_condidates = p_.opt_fu_idx[opt];
-      for (auto idx : fu_condidates) {
-      }  // for idx
+
+      unsigned fu_id = -1;
+      float start_time, finish_time;
+
+      for (auto fu_idx : fu_condidates) {
+        float avail_time = 0;
+        // TODO reckon avail_time
+        // unsigned no_dep_task_idx = p_.fu_info[fu_id].task_idx.size();
+        float cpt_time = tasks[task_idx].in_size / p_.fu_info[fu_idx].speed;
+        unsigned no_dep_task_idx = 0;
+        for (unsigned i = 0; i < p_.fu_info[fu_idx].task_idx.size(); ++i) {
+          if (tg_.existDependence(task_idx, p_.fu_info[fu_idx].task_idx[i])) {
+            no_dep_task_idx = i + 1;
+          }
+        }
+        if (no_dep_task_idx == p_.fu_info[fu_idx].task_idx.size()) {
+          avail_time = p_.fu_info[fu_idx].finish_time.back();
+        } else /*if (no_dep_task_idx == 0) */ {
+          if (p_.fu_info[fu_idx].task_idx.size() == 0) {
+            avail_time = 0;
+          } else {
+            for (unsigned i = no_dep_task_idx; i < p_.fu_info[fu_idx].task_idx.size(); ++i) {
+              if (i == 0 && p_.fu_info[fu_idx].start_time[0] >= cpt_time) {
+                avail_time = 0;
+              } else if (p_.fu_info[fu_idx].start_time[i] - p_.fu_info[fu_idx].finish_time[i - 1] >= cpt_time) {
+                avail_time = p_.fu_info[fu_idx].finish_time[i - 1];
+              } else {
+                avail_time = p_.fu_info[fu_idx].finish_time[i];
+              }
+            }
+          }
+        }
+
+        float curr_start_time = avail_time;
+        for (unsigned pre_task_idx = 0; pre_task_idx < task_nr; ++pre_task_idx) {
+          if (tg_.comm_size[pre_task_idx][task_idx] != -1) {
+            unsigned pre_fu_idx = tasks[pre_task_idx].fu_idx;
+            float tmp_start_time = tasks[pre_task_idx].finish_time
+                                   + tg_.comm_size[pre_task_idx][task_idx] / p_.bandwith[pre_fu_idx][fu_idx];
+            curr_start_time = std::max(tmp_start_time, curr_start_time);
+          }
+        }
+        float curr_finish_time = curr_start_time + cpt_time;
+        if (finish_time > curr_finish_time) {
+          fu_id = fu_idx;
+          start_time = curr_start_time;
+          finish_time = curr_finish_time;
+        }
+      }  // for fu_idx
+
+      tasks[task_idx].fu_idx = fu_id;
+      tasks[task_idx].start_time = start_time;
+      tasks[task_idx].finish_time = finish_time;
+      int pos = p_.fu_info[fu_id].task_idx.size() - 1;
+      for (; pos >= 0; --pos) {
+        if (p_.fu_info[fu_id].start_time[pos] < start_time) {
+          break;
+        }
+      }
+      p_.fu_info[fu_id].task_idx.insert(std::next(p_.fu_info[fu_id].task_idx.begin(), pos + 1), task_idx);
+      p_.fu_info[fu_id].start_time.insert(std::next(p_.fu_info[fu_id].start_time.begin(), pos + 1), start_time);
+      p_.fu_info[fu_id].finish_time.insert(std::next(p_.fu_info[fu_id].finish_time.begin(), pos + 1), finish_time);
     }
   }
 
@@ -125,8 +187,6 @@ private:
   std::vector<float> avg_comp_cost_;
   std::vector<float> upward_rank_;
   std::vector<unsigned> sorted_task_idx_;
-
-
 
   TaskGraph tg_;
   Processor p_;

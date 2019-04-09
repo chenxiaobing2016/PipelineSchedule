@@ -26,6 +26,14 @@ enum OperationType {
   SLICE = 8,
   EMPTY = 9
 };
+
+template<>
+struct std::hash<OperationType> {
+  size_t operator()(const OperationType& opt) const {
+    return (size_t)opt;
+  }
+};
+
 struct Operation {
   OperationType type;
   float min_size;
@@ -48,17 +56,9 @@ struct Processor {
   std::vector<std::vector<float>> bandwith;
 
   // assisted data structure.
-  // std::unordered_map<OperationType, std::vector<unsigned>> opt_fu_idx;
-  // void setOperatorType2FuIdx() {
-  //   static bool has_set = false;
-  //   if (!has_set) {
-  //     has_set = true;
-  //     for (auto idx = 0u; idx < fu_info.size(); ++idx) {
-  //       OperationType opt = fu_info[idx].op.type;
-  //       opt_fu_idx[opt].push_back(idx);
-  //     }
-  //   }
-  // }
+  std::unordered_map<OperationType, std::vector<unsigned>> opt_fu_idx;
+
+  void setOperatorType2FuIdx();
 };
 
 struct TaskNode {
@@ -77,26 +77,9 @@ struct TaskGraph {
 
 
   // assisted data structure.
-  bool existDependence(unsigned a, unsigned b) {
-    return isAncestor(a, b) || isAncestor(b, a);
-  }
+  bool existDependence(unsigned a, unsigned b);
 
-  bool isAncestor(unsigned a, unsigned b) {
-    std::queue<unsigned> qu;
-    qu.push(a);
-    while (!qu.empty()) {
-      for (auto i = 0; i < tasks.size(); ++i) {
-        if (comm_size[qu.front()][i] != -1) {
-          if (i == b) {
-            return true;
-          }
-          qu.push(i);
-          qu.pop();
-        }
-      }
-    }
-    return false;
-  }
+  bool isAncestor(unsigned a, unsigned b);
 };
 
 

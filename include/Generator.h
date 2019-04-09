@@ -6,6 +6,7 @@
 #include <cassert>
 #include <float.h>
 #include <math.h>
+#include <functional>
 
 #include "Processor.h"
 
@@ -13,8 +14,11 @@ class Generator {
 public:
   Generator(float i_s_, int v_, float alpha_, int task_graph_nr_, int o_d, float o_r,
             float s_r_ = 1, float ccr_ = 1)
-            : input_size(i_s_), v(v_), alpha(alpha_), out_degree(o_d), out_rate(o_r),
-              speed_rate(ccr_), ccr(ccr_) {}
+            : input_size(i_s_), v(v_), alpha(alpha_), task_graph_nr(task_graph_nr_),
+            out_degree(o_d), out_rate(o_r),
+            speed_rate(ccr_), ccr(ccr_) {}
+
+  /// DAG related
   // generate a random task dag
   void genRandomTaskDAG(int height, int width);
 
@@ -27,6 +31,18 @@ public:
   // generate specific nn task dag
   void genNNTaskDAG(NetType nn);
 
+  // check TaskGraph no cycles and complete connected
+  bool checkCycleAndConnect(TaskGraph TG);
+
+  // count in degree of every node
+  std::vector<int> countInDegree(TaskGraph);
+
+  // count out degree of every node
+  std::vector<int> countOutDegree(TaskGraph);
+
+  std::vector<TaskGraph> getTaskGraphs();
+
+  /// hardware related
   // generate speed table relate to hardwares
   void genSpeedTable(Processor &processor);
 

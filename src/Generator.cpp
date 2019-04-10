@@ -388,7 +388,7 @@ void Generator::printTaskDAGs() {
 }
 
 void Generator::genSpeedTable(Processor &processor) {
-    processor.bandwith.clear();
+    processor.bandwidth.clear();
     random_device rd;  // Will be used to obtain a seed for the random number engine
     mt19937 gen(rd());  // Standard mersenne_twister_engine seeded with rd()
     uniform_real_distribution<> dis_0_5_1_5(0.5, 1.5);
@@ -426,7 +426,7 @@ void Generator::genSpeedTable(Processor &processor) {
         auto src_thr_speed = fu_theory_speed_table[(int)processor.fu_info[src_idx].op.type];
         for (auto dst_idx = 0; dst_idx < processor.fu_info.size(); dst_idx++) {
             if (src_idx > dst_idx) {
-                src_speed_table.push_back(processor.bandwith[dst_idx][src_idx]);
+                src_speed_table.push_back(processor.bandwidth[dst_idx][src_idx]);
             } else {
                 auto dst_thr_speed = fu_theory_speed_table[(int)processor.fu_info[dst_idx].op.type];
                 float theory_bandwidth = ccr * (src_thr_speed + dst_thr_speed) / 2;
@@ -434,7 +434,7 @@ void Generator::genSpeedTable(Processor &processor) {
                 src_speed_table.push_back(true_bandwidth);
             }
         }
-        processor.bandwith.push_back(src_speed_table);
+        processor.bandwidth.push_back(src_speed_table);
     }
 }
 
@@ -445,7 +445,7 @@ void Generator::printSpeedTable(Processor processor) {
         cout <<" speed: " << processor.fu_info[fu_idx].speed << endl;
         cout << "bandwidth: ";
         for (auto dst_fu_idx = 0; dst_fu_idx < processor.fu_info.size(); dst_fu_idx++) {
-            cout << dst_fu_idx << "->" << processor.bandwith[fu_idx][dst_fu_idx] << " ";
+            cout << dst_fu_idx << "->" << processor.bandwidth[fu_idx][dst_fu_idx] << " ";
         }
         cout << "\n" << endl;
     }

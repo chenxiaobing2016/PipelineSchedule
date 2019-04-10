@@ -47,3 +47,8 @@ New Random Graph Generator Paramters:
 Processor Generater:
 * for a given graph, the average of compute rate of one kind of processor is positive relate with average size of responded layers in the graph, the positive ratio (P);
 * Communication to Computation ratio of specific kinds of processor(CCR).
+
+For communication amount matrix:
+ 1. if task i do not communicate with task j, comm_size[i][j] = -1;
+ 2. comm_size[i][i] = 0;
+ 3. comm_size[i][j] is directed edge, comm_size[i][j] may not equal to comm_size[j][i].

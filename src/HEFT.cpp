@@ -1,12 +1,13 @@
 #include <algorithm>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 
 #include "HEFT.h"
 
 HEFT::HEFT(TaskGraph tg, Processor p) 
     : tg_(tg), p_(p), l_(0) {}
-    
+
 void HEFT::run() {
   reckonAvgCompCost();
   reckonAvgCommCost();
@@ -18,42 +19,29 @@ void HEFT::run() {
 void HEFT::reckonAvgCompCost() {
   auto tasks = tg_.tasks;
   unsigned task_nr = tasks.size();
-  avg_comp_cost_.resize(task_nr, 0);
-  std::unordered_map<OperationType, float> op2avg_compt_speed;
-  for (auto i : p_.opt_fu_idx) {
-    float speed = 0;
-    for (auto idx : i.second) {
-      speed += p_.fu_info[idx].speed;
-    }
-    op2avg_compt_speed[i.first] = speed / i.second.size();
-  }
 
+  // reckon average computational cost for each task.
+  avg_comp_cost_.resize(task_nr, 0);
   for (unsigned task_idx = 0u; task_idx < task_nr; ++task_idx) {
     auto task = tasks[task_idx];
     OperationType opt = task.op.type;
-    avg_comp_cost_[task_idx] = tasks[task_idx].in_size / op2avg_compt_speed[opt];
+    avg_comp_cost_[task_idx] = tasks[task_idx].in_size / p_.op2avg_comp_speed[opt];
   }
 }
 
 void HEFT::reckonAvgCommCost() {
   auto tasks = tg_.tasks;
   unsigned task_nr = tasks.size();
-  avg_comm_cost_.resize(task_nr, std::vector<float>(task_nr, 0));
 
+  avg_comm_cost_.resize(task_nr, std::vector<float>(task_nr, 0));
   for (unsigned src_idx = 0; src_idx < task_nr; ++src_idx) {
     for (unsigned dst_idx = 0; dst_idx < task_nr; ++dst_idx) {
-      if (src_idx != dst_idx && tg_.comm_size[src_idx][dst_idx] != -1) {
+      if  (tg_.comm_size[src_idx][dst_idx] == -1) {
+        avg_comm_cost_[src_idx][dst_idx] = -1;
+      } else if (src_idx != dst_idx) {
         auto src_opt = tasks[src_idx].op.type;
         auto dst_opt = tasks[dst_idx].op.type;
-        auto src_fus_idx = p_.opt_fu_idx[src_opt];
-        auto dst_fus_idx = p_.opt_fu_idx[dst_opt];
-        float avg_bd = 0;
-        for (auto src_fu_idx : src_fus_idx) {
-          for (auto dst_fu_idx : dst_fus_idx) {
-            avg_bd += p_.bandwith[src_fu_idx][dst_fu_idx];
-          }
-        }
-        avg_bd /= (src_fus_idx.size() * dst_fus_idx.size());
+        float avg_bd = p_.op2op_avg_comm_speed[std::make_pair(src_opt, dst_opt)];
         avg_comm_cost_[src_idx][dst_idx] = l_ + tg_.comm_size[src_idx][dst_idx] /avg_bd;
       }
     }
@@ -63,32 +51,31 @@ void HEFT::reckonAvgCommCost() {
 void HEFT::reckonUpwardRank() {
   auto tasks = tg_.tasks;
   auto task_nr = tasks.size();
-
-  upward_rank_.resize(task_nr, 0);
-  int cnt = 0;
-  std::vector<bool> flag(task_nr, true);
-  while (cnt < tasks.size()) {
-    bool valid = true;
-    for (unsigned idx = 0; idx < task_nr; ++idx) {
-      if (!flag[idx]) { continue; }
-      for (unsigned succ_idx = 0; succ_idx < task_nr; ++succ_idx) {
-        if (tg_.comm_size[idx][succ_idx] != -1 && flag[idx]) {
-          valid = false;
+  upward_rank_.resize(task_nr, -1);
+  std::unordered_set<unsigned> reckoned_tasks;
+  while (reckoned_tasks.size() != task_nr) {
+    for (auto idx = 0; idx < task_nr; ++idx) {
+      if (reckoned_tasks.find(idx) == reckoned_tasks.end()) {
+        continue;
+      }
+      bool is_ready = true;
+      for (auto succ_idx : tg_.successor[idx]) {
+        if (upward_rank_[succ_idx] == -1) {
+          is_ready = false;
           break;
         }
       }
-      if (valid) {
-        ++cnt;
-        flag[idx] = false;
-        upward_rank_[idx] += avg_comp_cost_[idx];
-        float tmp = 0;
-        for (unsigned succ_idx = 0; succ_idx < task_nr; ++succ_idx) {
-          if (tg_.comm_size[idx][succ_idx] != -1) {
-            tmp = std::max(tmp, avg_comm_cost_[idx][succ_idx] + upward_rank_[succ_idx]);
-          }
-        }
-        upward_rank_[idx] += tmp;
+      if (!is_ready) {
+        continue;
       }
+      for (auto succ_idx : tg_.successor[idx]) {
+        float comm_speed = p_.op2op_avg_comm_speed[std::make_pair(tasks[idx].op.type,
+                                                   tasks[succ_idx].op.type)];
+        float tmp = tg_.comm_size[idx][succ_idx] / comm_speed + upward_rank_[succ_idx];
+        upward_rank_[idx] = std::max(upward_rank_[idx], tmp);
+      }
+      upward_rank_[idx] += tasks[idx].in_size / p_.op2avg_comp_speed[tasks[idx].op.type];
+      reckoned_tasks.insert(idx);
     }
   }
 }
@@ -113,49 +100,50 @@ void HEFT::schedule() {
 
   std::vector<std::vector<unsigned>> fu2task_idx(p_.fu_info.size(), std::vector<unsigned>());
   for (unsigned task_idx = 0; task_idx < task_nr; ++task_idx) {
-    auto opt = tasks[task_idx].op.type;
+    auto task = tasks[sorted_task_idx_[task_idx]];
+    auto opt = task.op.type;
     std::vector<unsigned> fu_condidates = p_.opt_fu_idx[opt];
 
     unsigned fu_id = -1;
     float start_time, finish_time;
 
     for (auto fu_idx : fu_condidates) {
+      // reckon avail_time
       float avail_time = 0;
-      // TODO reckon avail_time
-      // unsigned no_dep_task_idx = p_.fu_info[fu_id].task_idx.size();
-      float cpt_time = tasks[task_idx].in_size / p_.fu_info[fu_idx].speed;
+      float cpt_time = task.in_size / p_.fu_info[fu_idx].speed;
+      // [0 ~ no_dep_task_idx] is the ancestor of current task
       unsigned no_dep_task_idx = 0;
-      for (unsigned i = 0; i < p_.fu_info[fu_idx].task_idx.size(); ++i) {
-        if (tg_.existDependence(task_idx, p_.fu_info[fu_idx].task_idx[i])) {
-          no_dep_task_idx = i + 1;
+      std::vector<TaskItem> task_items = p_.fu_info[fu_idx].task_items;
+      if (task_items.size() == 0) {
+        avail_time = 0;
+      } else {
+        for (unsigned i = 0; i < task_items.size(); ++i) {
+          if (tg_.isAncestor(task_items[i].task_idx, sorted_task_idx_[task_idx])) {
+            no_dep_task_idx = i + 1;
+          }
         }
-      }
-      if (no_dep_task_idx == p_.fu_info[fu_idx].task_idx.size()) {
-        avail_time = p_.fu_info[fu_idx].finish_time.back();
-      } else /*if (no_dep_task_idx == 0) */ {
-        if (p_.fu_info[fu_idx].task_idx.size() == 0) {
-          avail_time = 0;
-        } else {
-          for (unsigned i = no_dep_task_idx; i < p_.fu_info[fu_idx].task_idx.size(); ++i) {
-            if (i == 0 && p_.fu_info[fu_idx].start_time[0] >= cpt_time) {
-              avail_time = 0;
-            } else if (p_.fu_info[fu_idx].start_time[i] - p_.fu_info[fu_idx].finish_time[i - 1] >= cpt_time) {
-              avail_time = p_.fu_info[fu_idx].finish_time[i - 1];
-            } else {
-              avail_time = p_.fu_info[fu_idx].finish_time[i];
-            }
+        for (unsigned i = no_dep_task_idx; i <= task_items.size(); ++i) {
+          if (i == 0 && task_items[0].start_time >= cpt_time) {
+            avail_time = 0;
+            break;
+          } else if (task_items[i].start_time - task_items[i - 1].finish_time >= cpt_time) {
+            avail_time = task_items[i - 1].finish_time;
+            break;
+          } else if (i == task_items.size()) {
+            avail_time = task_items[i - 1].finish_time;
+            break;
           }
         }
       }
 
       float curr_start_time = avail_time;
-      for (unsigned pre_task_idx = 0; pre_task_idx < task_nr; ++pre_task_idx) {
-        if (tg_.comm_size[pre_task_idx][task_idx] != -1) {
-          unsigned pre_fu_idx = tasks[pre_task_idx].fu_idx;
-          float tmp_start_time = tasks[pre_task_idx].finish_time
-                                 + tg_.comm_size[pre_task_idx][task_idx] / p_.bandwith[pre_fu_idx][fu_idx];
-          curr_start_time = std::max(tmp_start_time, curr_start_time);
-        }
+      // select the max of {avail_time(fu), precedence(j) + comm_time(j, i)} as start time.
+      for (unsigned pre_task_idx : tg_.precedence[sorted_task_idx_[task_idx]]) {
+        unsigned pre_fu_idx = tasks[pre_task_idx].fu_idx;
+        float tmp_start_time = tasks[pre_task_idx].finish_time
+                               + tg_.comm_size[pre_task_idx][sorted_task_idx_[task_idx]]
+                               / p_.bandwidth[pre_fu_idx][fu_idx];
+        curr_start_time = std::max(tmp_start_time, curr_start_time);
       }
       float curr_finish_time = curr_start_time + cpt_time;
       if (finish_time > curr_finish_time) {
@@ -165,17 +153,9 @@ void HEFT::schedule() {
       }
     }  // for fu_idx
 
-    tasks[task_idx].fu_idx = fu_id;
-    tasks[task_idx].start_time = start_time;
-    tasks[task_idx].finish_time = finish_time;
-    int pos = p_.fu_info[fu_id].task_idx.size() - 1;
-    for (; pos >= 0; --pos) {
-      if (p_.fu_info[fu_id].start_time[pos] < start_time) {
-        break;
-      }
-    }
-    p_.fu_info[fu_id].task_idx.insert(std::next(p_.fu_info[fu_id].task_idx.begin(), pos + 1), task_idx);
-    p_.fu_info[fu_id].start_time.insert(std::next(p_.fu_info[fu_id].start_time.begin(), pos + 1), start_time);
-    p_.fu_info[fu_id].finish_time.insert(std::next(p_.fu_info[fu_id].finish_time.begin(), pos + 1), finish_time);
+    // set task group and processor status.
+    tg_.tasks[sorted_task_idx_[task_idx]].setFuInfo(fu_id, start_time, finish_time);
+    TaskItem ti { sorted_task_idx_[task_idx], start_time, finish_time};
+    p_.fu_info[fu_id].insertTaskItem(ti);
   }
 }

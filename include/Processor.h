@@ -1,6 +1,7 @@
 #ifndef PIPELINESCHEDULE_FUNCTIONUNIT_H_
 #define PIPELINESCHEDULE_FUNCTIONUNIT_H_
 
+#include <climits>
 #include <queue>
 #include <unordered_map>
 #include <vector>
@@ -34,6 +35,13 @@ struct std::hash<OperationType> {
   }
 };
 
+template<>
+struct std::hash<std::pair<OperationType, OperationType>> {
+  size_t operator()(const std::pair<OperationType, OperationType>& in) const {
+    return (size_t) in.first * INT_MAX + in.second;
+  }
+};
+
 struct Operation {
   OperationType type;
   float min_size;
@@ -43,22 +51,37 @@ struct Operation {
   }
 };
 
+// used to record a task on a fu.
+struct TaskItem {
+  unsigned task_idx;
+  float start_time, finish_time;
+};
+
 struct FU {
   float speed;
   Operation op;
 
-  std::vector<unsigned> task_idx;
-  std::vector<float> start_time, finish_time;
+  // task_items is sorted by start time.
+  std::vector<TaskItem> task_items;
+  void insertTaskItem(TaskItem task_item);
 };
 
 struct Processor {
   std::vector<FU> fu_info;
-  std::vector<std::vector<float>> bandwith;
+  std::vector<std::vector<float>> bandwidth;
 
   // assisted data structure.
   std::unordered_map<OperationType, std::vector<unsigned>> opt_fu_idx;
 
   void setOperatorType2FuIdx();
+
+  std::unordered_map<OperationType, float> op2avg_comp_speed;
+  // reckon average computational speed for each kind of op.
+  void setAvgCompSpeedForOp();
+
+  std::unordered_map<std::pair<OperationType, OperationType>, float> op2op_avg_comm_speed;
+  // reckon communicational speed for each two kinds of op.
+  void setAvgCommSpeedForOp2Op();
 };
 
 struct TaskNode {
@@ -68,7 +91,12 @@ struct TaskNode {
 
   // assisted data structure.
   unsigned fu_idx;
-  unsigned start_time, finish_time;
+  float start_time, finish_time;
+  void setFuInfo(unsigned fi, float st, float ft) {
+    fu_idx = fi;
+    start_time = st;
+    finish_time = ft;
+  }
 };
 
 struct TaskGraph {
@@ -77,9 +105,17 @@ struct TaskGraph {
 
 
   // assisted data structure.
+  // whether there exists a path between tasks[a] and tasks[b].
   bool existDependence(unsigned a, unsigned b);
-
+  // whether tasks[a] is the ancestor of tasks[b]
   bool isAncestor(unsigned a, unsigned b);
+
+  std::vector<std::vector<unsigned>> precedence;
+  std::vector<std::vector<unsigned>> successor;
+  unsigned entry, exit;
+  // set precedence successor for each task,
+  // and set entry/exit point for the graph.
+  void setTaskRelation();
 };
 
 

@@ -55,7 +55,7 @@ void HEFT::reckonUpwardRank() {
   std::unordered_set<unsigned> reckoned_tasks;
   while (reckoned_tasks.size() != task_nr) {
     for (auto idx = 0; idx < task_nr; ++idx) {
-      if (reckoned_tasks.find(idx) == reckoned_tasks.end()) {
+      if (reckoned_tasks.find(idx) != reckoned_tasks.end()) {
         continue;
       }
       bool is_ready = true;

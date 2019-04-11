@@ -7,6 +7,9 @@
 #include <vector>
 
 #include "Util.h"
+
+#define MAX_OPTYPE_NUM 10000
+
 enum NetType {
     LENET,
     ALEXNET,
@@ -38,7 +41,7 @@ struct std::hash<OperationType> {
 template<>
 struct std::hash<std::pair<OperationType, OperationType>> {
   size_t operator()(const std::pair<OperationType, OperationType>& in) const {
-    return (size_t) in.first * INT_MAX + in.second;
+    return (size_t) in.first * MAX_OPTYPE_NUM + in.second;
   }
 };
 

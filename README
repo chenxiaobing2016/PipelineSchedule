@@ -52,3 +52,5 @@ For communication amount matrix:
  1. if task i do not communicate with task j, comm_size[i][j] = -1;
  2. comm_size[i][i] = 0;
  3. comm_size[i][j] is directed edge, comm_size[i][j] may not equal to comm_size[j][i].
+
+Try to add Shared Memory for IO hotspot.

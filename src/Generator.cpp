@@ -387,6 +387,41 @@ void Generator::printTaskDAGs() {
     }
 }
 
+void Generator::genDAGdots() {
+    for (auto tg_idx = 0; tg_idx < task_graphs.size(); tg_idx++) {
+        string file_name = "task_graph" + to_string(tg_idx) + ".dot";
+        ofstream fout(file_name);
+        fout << "digraph tg" << to_string(tg_idx) << "{\n";
+        fout << "\tsize = \"4,4\";\n";
+        vector<string> task_labels;
+        vector<string> task_names;
+        for (auto task_idx = 0; task_idx < task_graphs[tg_idx].tasks.size(); task_idx++) {
+            auto task = task_graphs[tg_idx].tasks[task_idx];
+            string name = opTypeToName(task.op.type) + to_string(task_idx);
+            string in_size = "\\nin_size: " + to_string(task.in_size) + "\\n";
+            string fu_idx = "fu_idx: " + to_string(task.fu_idx) + "\\n";
+            string s_t = "start: " + to_string(task.start_time) + "\\n";
+            string f_t = "finish: " + to_string(task.finish_time);
+            string task_label = name + in_size + fu_idx + s_t + f_t;
+            task_labels.push_back(task_label);
+            task_names.push_back(name);
+            fout << "\t" << name << " [label=\"" << task_label << "\"];\n";
+        }
+        for (auto task_idx = 1; task_idx < task_graphs[tg_idx].tasks.size(); task_idx++) {
+            for (auto prec_idx = 0; prec_idx <= task_idx; prec_idx++) {
+                auto comm_size = task_graphs[tg_idx].comm_size[prec_idx][task_idx];
+                if (comm_size >= 0) {
+                    string link;
+                    link = task_names[prec_idx] + " -> " + task_names[task_idx];
+                    fout << "\t" << link << " [label=\"" << to_string(comm_size) << "\"];\n";
+                }
+            }
+        }
+        fout << "}";
+        fout.close();
+    }
+}
+
 void Generator::genSpeedTable(Processor &processor) {
     processor.bandwidth.clear();
     random_device rd;  // Will be used to obtain a seed for the random number engine

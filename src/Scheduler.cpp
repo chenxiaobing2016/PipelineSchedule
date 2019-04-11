@@ -3,20 +3,20 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "HEFT.h"
+#include "Scheduler.h"
 
-HEFT::HEFT(TaskGraph tg, Processor p) 
+Scheduler::Scheduler(TaskGraph tg, Processor p)
     : tg_(tg), p_(p), l_(0) {}
 
-void HEFT::run() {
+void Scheduler::runHEFT() {
   reckonAvgCompCost();
   reckonAvgCommCost();
   reckonUpwardRank();
   sortByUpwardRank();
-  schedule();
+  scheduleHEFT();
 }
 
-void HEFT::reckonAvgCompCost() {
+void Scheduler::reckonAvgCompCost() {
   auto tasks = tg_.tasks;
   unsigned task_nr = tasks.size();
 
@@ -29,7 +29,7 @@ void HEFT::reckonAvgCompCost() {
   }
 }
 
-void HEFT::reckonAvgCommCost() {
+void Scheduler::reckonAvgCommCost() {
   auto tasks = tg_.tasks;
   unsigned task_nr = tasks.size();
 
@@ -48,7 +48,39 @@ void HEFT::reckonAvgCommCost() {
   }
 }
 
-void HEFT::reckonUpwardRank() {
+void Scheduler::reckonDownwardRank() {
+    auto tasks = tg_.tasks;
+    auto task_nr = tasks.size();
+    downward_rank_.resize(task_nr, -1);
+    std::unordered_set<unsigned> reckoned_tasks;
+    while (reckoned_tasks.size() != task_nr) {
+        for (auto idx = 0; idx < task_nr; ++idx) {
+            if (reckoned_tasks.find(idx) != reckoned_tasks.end()) {
+                continue;
+            }
+            bool is_ready = true;
+            for (auto prec_idx : tg_.precedence[idx]) {
+                if (downward_rank_[prec_idx] == -1) {
+                    is_ready = false;
+                    break;
+                }
+            }
+            if (!is_ready) {
+                continue;
+            }
+            for (auto prec_idx : tg_.precedence[idx]) {
+                float comm_speed = p_.op2op_avg_comm_speed[std::make_pair(tasks[prec_idx].op.type,
+                                                                          tasks[idx].op.type)];
+                float tmp = tg_.comm_size[prec_idx][idx] / comm_speed
+                        + tasks[prec_idx].in_size / p_.op2avg_comp_speed[tasks[prec_idx].op.type]
+                        + downward_rank_[prec_idx];
+                downward_rank_[idx] = std::max(downward_rank_[idx], tmp);
+            }
+            reckoned_tasks.insert(idx);
+        }
+    }
+}
+void Scheduler::reckonUpwardRank() {
   auto tasks = tg_.tasks;
   auto task_nr = tasks.size();
   upward_rank_.resize(task_nr, -1);
@@ -80,27 +112,42 @@ void HEFT::reckonUpwardRank() {
   }
 }
 
-void HEFT::sortByUpwardRank() {
+void Scheduler::sortByUpwardRank() {
   auto tasks = tg_.tasks;
   unsigned task_nr = tasks.size();
-  sorted_task_idx_.resize(task_nr, 0);
+  HEFT_sorted_task_idx_.resize(task_nr, 0);
   for (unsigned i = 0; i < task_nr; ++i) {
-    sorted_task_idx_[i] = i;
+    HEFT_sorted_task_idx_[i] = i;
   }
   auto tmp_upward_rank = upward_rank_;
   auto cmp = [&tmp_upward_rank](unsigned a, unsigned b) {
     return tmp_upward_rank[a] >= tmp_upward_rank[b];
   };
-  std::sort(sorted_task_idx_.begin(), sorted_task_idx_.end(), cmp);
+  std::sort(HEFT_sorted_task_idx_.begin(), HEFT_sorted_task_idx_.end(), cmp);
 }
 
-void HEFT::schedule() {
+void Scheduler::sortByUpAndDownwardRank() {
+    auto tasks = tg_.tasks;
+    unsigned task_nr = tasks.size();
+    CPOP_sorted_task_idx_.resize(task_nr, 0);
+    auto tmp_up_plus_down_rank = upward_rank_;
+    for (unsigned i = 0; i < task_nr; ++i) {
+        CPOP_sorted_task_idx_[i] = i;
+        tmp_up_plus_down_rank[i] += downward_rank_[i];
+    }
+    auto cmp = [&tmp_up_plus_down_rank](unsigned a, unsigned b) {
+        return tmp_up_plus_down_rank[a] >= tmp_up_plus_down_rank[b];
+    };
+    std::sort(CPOP_sorted_task_idx_.begin(), CPOP_sorted_task_idx_.end(), cmp);
+}
+
+void Scheduler::scheduleHEFT() {
   auto tasks = tg_.tasks;
   unsigned task_nr = tasks.size();
 
   std::vector<std::vector<unsigned>> fu2task_idx(p_.fu_info.size(), std::vector<unsigned>());
   for (unsigned task_idx = 0; task_idx < task_nr; ++task_idx) {
-    auto task = tasks[sorted_task_idx_[task_idx]];
+    auto task = tasks[HEFT_sorted_task_idx_[task_idx]];
     auto opt = task.op.type;
     std::vector<unsigned> fu_condidates = p_.opt_fu_idx[opt];
 
@@ -118,7 +165,7 @@ void HEFT::schedule() {
         avail_time = 0;
       } else {
         for (unsigned i = 0; i < task_items.size(); ++i) {
-          if (tg_.isAncestor(task_items[i].task_idx, sorted_task_idx_[task_idx])) {
+          if (tg_.isAncestor(task_items[i].task_idx, HEFT_sorted_task_idx_[task_idx])) {
             no_dep_task_idx = i + 1;
           }
         }
@@ -138,10 +185,10 @@ void HEFT::schedule() {
 
       float curr_start_time = avail_time;
       // select the max of {avail_time(fu), precedence(j) + comm_time(j, i)} as start time.
-      for (unsigned pre_task_idx : tg_.precedence[sorted_task_idx_[task_idx]]) {
+      for (unsigned pre_task_idx : tg_.precedence[HEFT_sorted_task_idx_[task_idx]]) {
         unsigned pre_fu_idx = tasks[pre_task_idx].fu_idx;
         float tmp_start_time = tasks[pre_task_idx].finish_time
-                               + tg_.comm_size[pre_task_idx][sorted_task_idx_[task_idx]]
+                               + tg_.comm_size[pre_task_idx][HEFT_sorted_task_idx_[task_idx]]
                                / p_.bandwidth[pre_fu_idx][fu_idx];
         curr_start_time = std::max(tmp_start_time, curr_start_time);
       }
@@ -154,8 +201,8 @@ void HEFT::schedule() {
     }  // for fu_idx
 
     // set task group and processor status.
-    tg_.tasks[sorted_task_idx_[task_idx]].setFuInfo(fu_id, start_time, finish_time);
-    TaskItem ti { sorted_task_idx_[task_idx], start_time, finish_time};
+    tg_.tasks[HEFT_sorted_task_idx_[task_idx]].setFuInfo(fu_id, start_time, finish_time);
+    TaskItem ti { HEFT_sorted_task_idx_[task_idx], start_time, finish_time};
     p_.fu_info[fu_id].insertTaskItem(ti);
   }
 }

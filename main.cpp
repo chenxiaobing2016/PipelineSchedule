@@ -1,6 +1,6 @@
 #include <iostream>
-#include "include/Generator.h"
-#include "HEFT.h"
+#include "Generator.h"
+#include "Scheduler.h"
 
 using namespace std;
 
@@ -22,6 +22,7 @@ void genTaskGraph(std::vector<TaskGraph>& task_graphs, Processor& processor) {
                                   speed_rate,
                                   ccr);
   test_generator.genRandomTaskDAGs();
+  test_generator.genDAGdots();
   task_graphs = test_generator.getTaskGraphs();
 
   // cout << "correctness: " << test_generator.checkCycleAndConnect(task_graphs[2]) << endl;
@@ -78,8 +79,8 @@ int main() {
   genTaskGraph(task_graphs, processor);
   for (TaskGraph& tg : task_graphs) {
     configParams(tg, processor);
-    HEFT heft = HEFT(tg, processor);
-    heft.run();
+    Scheduler heft = Scheduler(tg, processor);
+    heft.runHEFT();
     break;
   }
   return 0;

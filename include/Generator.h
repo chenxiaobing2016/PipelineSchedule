@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include <string>
 #include <vector>
 #include <random>
@@ -19,14 +20,14 @@ public:
             speed_rate(ccr_), ccr(ccr_) {}
 
   /// DAG related
-  // generate a random task dag
-  void genRandomTaskDAG(int height, int width);
-
   // generate a group of random task dag
   void genRandomTaskDAGs();
 
   // print TaskDAG
   void printTaskDAGs();
+
+  // generate 
+  void genDAGdots();
 
   // generate specific nn task dag
   void genNNTaskDAG(NetType nn);
@@ -40,6 +41,7 @@ public:
   // count out degree of every node
   std::vector<int> countOutDegree(TaskGraph);
 
+  // getter of taskgraphs
   std::vector<TaskGraph> getTaskGraphs();
 
   /// hardware related
@@ -62,6 +64,9 @@ public:
   // float getOutRate();
 
 private:
+    // generate a random task dag
+    void genRandomTaskDAG(int height, int width);
+
     // parameters for tasks
     struct OpGrid{
         int id;

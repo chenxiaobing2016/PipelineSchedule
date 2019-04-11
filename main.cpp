@@ -3,10 +3,10 @@
 using namespace std;
 int main() {
     float input_size = 1000.0;
-    int v = 1000;
+    int v = 10;
     float alpha = 0.5;  // (0, 1]
-    int task_graph_nr = 3;
-    int out_degree = 8;
+    int task_graph_nr = 2;
+    int out_degree = 4;
     float out_rate = 0.8;  // (0, 1]
     float speed_rate = 0.5;  // (0, 1];
     float ccr = 0.5;  // (0, 1]
@@ -19,6 +19,7 @@ int main() {
                                     speed_rate,
                                     ccr);
     test_generator.genRandomTaskDAGs();
+    test_generator.genDAGdots();
     // auto task_graphs = test_generator.getTaskGraphs();
 
     // cout << "correctness: " << test_generator.checkCycleAndConnect(task_graphs[2]) << endl;

@@ -31,6 +31,37 @@ void Scheduler::dumpScheduleResult(const std::string &file_name) {
   }
 }
 
+void Scheduler::dumpTaskGraph(const std::string &file_name) {
+  std::ofstream fout(file_name.c_str());
+  for (unsigned task_idx = 0u; task_idx < tg_.tasks.size(); ++task_idx) {
+    std::string operation_type = toString(tg_.tasks[task_idx].op.type);
+    int fu_id        = tg_.tasks[task_idx].fu_idx;
+    float size       = tg_.tasks[task_idx].comp_size;
+    float speed      = p_.fu_info[fu_id].speed;
+    float start_time = tg_.tasks[task_idx].start_time;
+    float end_time   = tg_.tasks[task_idx].finish_time;
+    fout << task_idx       << " "
+         << operation_type << " "
+         << fu_id          << " "
+         << size           << " "
+         << speed          << " "
+         << start_time     << " "
+         << end_time       << " ";
+    for (unsigned succ_idx = 0u; succ_idx < tg_.successor[task_idx].size(); ++succ_idx) {
+      int succ_id    = tg_.successor[task_idx][succ_idx];
+      float size     = tg_.comm_size[task_idx][succ_id];
+      int succ_fu_id = tg_.tasks[succ_id].fu_idx;
+      float speed    = p_.bandwidth[fu_id][succ_fu_id];
+      float time     = size / speed;
+      fout << succ_id << " "
+           << size    << " "
+           << speed   << " "
+           << time    << " ";
+    }
+    fout << std::endl;
+  }
+}
+
 void Scheduler::reckonAvgCompCost() {
   auto tasks = tg_.tasks;
   unsigned task_nr = tasks.size();
@@ -40,7 +71,7 @@ void Scheduler::reckonAvgCompCost() {
   for (unsigned task_idx = 0u; task_idx < task_nr; ++task_idx) {
     auto task = tasks[task_idx];
     OperationType opt = task.op.type;
-    avg_comp_cost_[task_idx] = tasks[task_idx].in_size / p_.op2avg_comp_speed[opt];
+    avg_comp_cost_[task_idx] = tasks[task_idx].comp_size / p_.op2avg_comp_speed[opt];
   }
 }
 
@@ -87,7 +118,7 @@ void Scheduler::reckonDownwardRank() {
                 float comm_speed = p_.op2op_avg_comm_speed[std::make_pair(tasks[prec_idx].op.type,
                                                                           tasks[idx].op.type)];
                 float tmp = tg_.comm_size[prec_idx][idx] / comm_speed
-                        + tasks[prec_idx].in_size / p_.op2avg_comp_speed[tasks[prec_idx].op.type]
+                        + tasks[prec_idx].comp_size / p_.op2avg_comp_speed[tasks[prec_idx].op.type]
                         + downward_rank_[prec_idx];
                 downward_rank_[idx] = std::max(downward_rank_[idx], tmp);
             }
@@ -122,7 +153,7 @@ void Scheduler::reckonUpwardRank() {
         float tmp = tg_.comm_size[idx][succ_idx] / comm_speed + upward_rank_[succ_idx];
         upward_rank_[idx] = std::max(upward_rank_[idx], tmp);
       }
-      upward_rank_[idx] += tasks[idx].in_size / p_.op2avg_comp_speed[tasks[idx].op.type];
+      upward_rank_[idx] += tasks[idx].comp_size / p_.op2avg_comp_speed[tasks[idx].op.type];
       reckoned_tasks.insert(idx);
     }
   }
@@ -173,7 +204,7 @@ void Scheduler::scheduleHEFT() {
     for (auto fu_idx : fu_condidates) {
       // reckon avail_time
       float avail_time = 0;
-      float cpt_time = task.in_size / p_.fu_info[fu_idx].speed;
+      float cpt_time = task.comp_size / p_.fu_info[fu_idx].speed;
       // [0 ~ no_dep_task_idx] is the ancestor of current task
       unsigned no_dep_task_idx = 0;
       std::vector<TaskItem> task_items = p_.fu_info[fu_idx].task_items;

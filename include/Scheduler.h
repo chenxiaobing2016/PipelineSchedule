@@ -13,6 +13,8 @@ public:
 
   void dumpScheduleResult(const std::string& file_name = "schedule_result");
 
+  void dumpTaskGraph(const std::string& file_name = "task_info");
+
 private:
   // reckon average computational cost for each task.
   void reckonAvgCompCost();

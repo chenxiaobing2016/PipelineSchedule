@@ -1,5 +1,21 @@
 #include "Processor.h"
 
+std::string toString(OperationType opt) {
+  switch (opt) {
+    case INPUT : return "INPUT";
+    case OUTPUT: return "INPUT";
+    case CONV  : return "CONV";
+    case POOL  : return "POOL";
+    case FC    : return "FC";
+    case ACTIVE: return "ACTIVE";
+    case BINARY: return "BINARY";
+    case CONCAT: return "CONCAT";
+    case SLICE : return "SLICE";
+    case EMPTY : return "EMPTY";
+    default    : return "UNSUPPORT TYPE";
+  }
+}
+
 void FU::insertTaskItem(TaskItem task_item) {
   int pos = task_items.size() - 1;
   for (; pos >= 0; --pos) {

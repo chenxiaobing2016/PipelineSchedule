@@ -33,6 +33,8 @@ enum OperationType {
   EMPTY = 9
 };
 
+std::string toString(OperationType opt);
+
 template<>
 struct std::hash<OperationType> {
   size_t operator()(const OperationType& opt) const {

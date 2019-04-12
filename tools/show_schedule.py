@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import matplotlib.pyplot as plt
 
@@ -40,7 +40,7 @@ def rearange_task(task_info, max_time):
     if len(task_info[p_idx]) == 0:
       ret_val[-1].append([-1, 0, max_time])
     else:
-      ret_val[-1].append([-1, task_info[p_idx][t_idx][2], max_time])
+      ret_val[-1].append([-1, task_info[p_idx][-1][2], max_time])
   return ret_val
 
 def print_processor_usage(task_info):
@@ -53,24 +53,27 @@ def print_processor_usage(task_info):
       end     = task_info[p_idx][t_idx][2]
       if task_id == -1:
         if has_idle_label == False:
-          plt.plot([start, end], [y, y], c='k', label=' Idle', linewidth=20.)
+          # plt.plot([start, end], [y, y], c='k', label=' Idle', linewidth=20.)
+          plt.plot([start, end], [y, y], c='w', linewidth=20.)
           has_idle_label = True
         else:
-          plt.plot([start, end], [y, y], c='k', linewidth=20.)
+          plt.plot([start, end], [y, y], c='w', linewidth=20.)
       else:
-        plt.plot([start, end], [y, y], label=' Node-'+str(task_id), linewidth=20.)
+        # plt.plot([start, end], [y, y], label=' Node-'+str(task_id), linewidth=20.)
+        plt.plot([start, end], [y, y], linewidth=20.)
   xtick = range(0, int(task_info[-1][-1][-1] * 1.5), int(task_info[-1][-1][-1] * 0.15))
   plt.xticks(xtick)
   ytick = range(0, len(task_info) + 1, 1)
   plt.yticks(ytick)
   plt.legend(loc='upper right')
+  # plt.legend(loc='best')
   plt.xlabel('time')
   plt.ylabel('function unit')
   plt.title('schedule result for each task in function units')
   plt.show()
 
 if __name__ == '__main__':
-  task_info = get_input('input')
+  task_info = get_input('../build/schedule_result')
   max_time = get_max_time(task_info)
   task_info = rearange_task(task_info, max_time)
   print_processor_usage(task_info)

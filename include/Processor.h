@@ -68,6 +68,7 @@ struct FU {
   // task_items is sorted by start time.
   std::vector<TaskItem> task_items;
   void insertTaskItem(TaskItem task_item);
+  void clearTaskItem();
 };
 
 struct Processor {

@@ -10,6 +10,10 @@ void FU::insertTaskItem(TaskItem task_item) {
   task_items.insert(std::next(task_items.begin(), pos + 1), task_item);
 }
 
+void FU::clearTaskItem() {
+  task_items.clear();
+}
+
 void Processor::setOperatorType2FuIdx() {
   static bool has_set = false;
   if (!has_set) {
@@ -60,6 +64,7 @@ bool TaskGraph::isAncestor(unsigned a, unsigned b) {
     for (auto i : successor[qu.front()]) {
       qu.push(i);
     }
+    qu.pop();
   }
   return false;
 }
@@ -71,8 +76,8 @@ void TaskGraph::setTaskRelation() {
   for (unsigned src = 0u; src < tasks.size(); ++src) {
     for (unsigned dst = 0u; dst < tasks.size(); ++dst) {
       if (src != dst && comm_size[src][dst] != -1) {
-        precedence[src].push_back(dst);
-        successor[dst].push_back(src);
+        successor[src].push_back(dst);
+        precedence[dst].push_back(src);
       }
     }
   }

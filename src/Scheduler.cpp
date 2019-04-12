@@ -1,4 +1,7 @@
 #include <algorithm>
+#include <cfloat>
+#include <climits>
+#include <fstream>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -14,6 +17,18 @@ void Scheduler::runHEFT() {
   reckonUpwardRank();
   sortByUpwardRank();
   scheduleHEFT();
+}
+
+void Scheduler::dumpScheduleResult(const std::string &file_name) {
+  std::ofstream fout(file_name.c_str());
+  for (unsigned p_idx = 0u; p_idx < p_.fu_info.size(); ++p_idx) {
+    std::vector<TaskItem> task_items = p_.fu_info[p_idx].task_items;
+    for (unsigned t_idx = 0u; t_idx < task_items.size(); ++t_idx) {
+      TaskItem ti = task_items[t_idx];
+      fout << ti.task_idx << " " << ti.start_time << " " << ti.finish_time << " ";
+    }
+    fout << std::endl;
+  }
 }
 
 void Scheduler::reckonAvgCompCost() {
@@ -100,6 +115,7 @@ void Scheduler::reckonUpwardRank() {
       if (!is_ready) {
         continue;
       }
+      upward_rank_[idx] = 0;
       for (auto succ_idx : tg_.successor[idx]) {
         float comm_speed = p_.op2op_avg_comm_speed[std::make_pair(tasks[idx].op.type,
                                                    tasks[succ_idx].op.type)];
@@ -142,7 +158,7 @@ void Scheduler::sortByUpAndDownwardRank() {
 }
 
 void Scheduler::scheduleHEFT() {
-  auto tasks = tg_.tasks;
+  auto& tasks = tg_.tasks;
   unsigned task_nr = tasks.size();
 
   std::vector<std::vector<unsigned>> fu2task_idx(p_.fu_info.size(), std::vector<unsigned>());
@@ -152,7 +168,7 @@ void Scheduler::scheduleHEFT() {
     std::vector<unsigned> fu_condidates = p_.opt_fu_idx[opt];
 
     unsigned fu_id = -1;
-    float start_time, finish_time;
+    float start_time = FLT_MAX, finish_time = FLT_MAX;
 
     for (auto fu_idx : fu_condidates) {
       // reckon avail_time
@@ -170,10 +186,11 @@ void Scheduler::scheduleHEFT() {
           }
         }
         for (unsigned i = no_dep_task_idx; i <= task_items.size(); ++i) {
+          // i == 0 enter the second body.
           if (i == 0 && task_items[0].start_time >= cpt_time) {
             avail_time = 0;
             break;
-          } else if (task_items[i].start_time - task_items[i - 1].finish_time >= cpt_time) {
+          } else if (i > 0 && task_items[i].start_time - task_items[i - 1].finish_time >= cpt_time) {
             avail_time = task_items[i - 1].finish_time;
             break;
           } else if (i == task_items.size()) {

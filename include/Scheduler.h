@@ -11,6 +11,8 @@ public:
 
   void runHEFT();
 
+  void dumpScheduleResult(const std::string& file_name = "schedule_result");
+
 private:
   // reckon average computational cost for each task.
   void reckonAvgCompCost();

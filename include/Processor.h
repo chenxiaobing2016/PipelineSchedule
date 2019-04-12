@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <vector>
 #include <cassert>
+#include <cmath>
 
 #include "Util.h"
 
@@ -92,6 +93,7 @@ struct Processor {
 struct TaskNode {
   float in_size;
   float out_size;
+  float comp_size;
   Operation op;
 
   // assisted data structure.

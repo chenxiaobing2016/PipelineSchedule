@@ -43,6 +43,10 @@ New Random Graph Generator Paramters:
 * the initial input size (input_size)
 * the out degree of concat and slice (out_degree)
 * the shrink rate of conv, fc, pool, and other layers shrink rate is 1 (out_rate)
+* the compute size of task is relate to the input size,
+*   for conv and fc, compute size is 10 * input size
+*   for active, pool, binary, input and output, compute size is equal to input size
+*   for concat and slice, compute size is input size^0.5
 
 Processor Generater:
 * for a given graph, the average of compute rate of one kind of processor is positive relate with average size of responded layers in the graph, the positive ratio (P);

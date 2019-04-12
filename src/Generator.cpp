@@ -273,6 +273,7 @@ void Generator::genRandomTaskDAG(int height, int width) {
   for (auto task_idx = 1; task_idx < task_nr; task_idx++) {
       float whole_in_size = 0;
       float whole_out_size = 0;
+      float comp_size;
       for (auto pre_idx = 0; pre_idx <= task_idx; pre_idx++) {
           if (adj_matrix[pre_idx][task_idx] >= 0) {
               adj_matrix[pre_idx][task_idx] = tasks[pre_idx].out_size;
@@ -283,21 +284,31 @@ void Generator::genRandomTaskDAG(int height, int width) {
       switch(tasks[task_idx].op.type) {
           case OperationType::CONV:
           case OperationType::FC:
+              whole_out_size = whole_in_size * out_rate;
+              comp_size = 10 * whole_in_size;
+              break;
           case OperationType::POOL:
               whole_out_size = whole_in_size * out_rate;
+              comp_size = whole_in_size;
               break;
           case OperationType::CONCAT:
+              whole_out_size = whole_in_size;
+              comp_size = pow(whole_in_size, 0.5);
+              break;
           case OperationType::ACTIVE:
           case OperationType::BINARY:
           case OperationType::OUTPUT:
           case OperationType::INPUT:
               whole_out_size = whole_in_size;
+              whole_out_size = whole_in_size;
+              comp_size = whole_in_size;
               break;
           case OperationType::SLICE:
               for (auto suc_idx = task_idx; suc_idx < task_nr; suc_idx++)
                   if (adj_matrix[task_idx][suc_idx] >= 0)
                       sucs_nr++;
               whole_out_size = whole_in_size / sucs_nr;
+              comp_size = pow(whole_in_size, 0.5);
               break;
           default:
               assert(0);
@@ -305,6 +316,7 @@ void Generator::genRandomTaskDAG(int height, int width) {
       }
       tasks[task_idx].in_size = whole_in_size;
       tasks[task_idx].out_size = whole_out_size;
+      tasks[task_idx].comp_size = comp_size;
   }
 
   TaskGraph new_task_graph;

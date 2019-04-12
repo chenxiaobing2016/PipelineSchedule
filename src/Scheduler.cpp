@@ -19,6 +19,14 @@ void Scheduler::runHEFT() {
   scheduleHEFT();
 }
 
+void Scheduler::runCPOP() {
+    reckonAvgCompCost();
+    reckonAvgCommCost();
+    reckonUpwardRank();
+    reckonDownwardRank();
+    sortByUpAndDownwardRank();
+    scheduleCPOP();
+}
 void Scheduler::dumpScheduleResult(const std::string &file_name) {
   std::ofstream fout(file_name.c_str());
   for (unsigned p_idx = 0u; p_idx < p_.fu_info.size(); ++p_idx) {
@@ -253,4 +261,73 @@ void Scheduler::scheduleHEFT() {
     TaskItem ti { HEFT_sorted_task_idx_[task_idx], start_time, finish_time};
     p_.fu_info[fu_id].insertTaskItem(ti);
   }
+}
+
+void Scheduler::scheduleCPOP() {
+    std::vector<TaskNode> CPSet;
+    CPSet.push_back(tg_.tasks.front());
+    unsigned cur_idx = 0;
+    while (CPSet.back().op.type != OUTPUT) {
+        unsigned next_idx = -1;
+        auto cur_sucs = tg_.successor[cur_idx];
+        for (auto task_idx : CPOP_sorted_task_idx_) {
+            auto next_iter = find(cur_sucs.begin(), cur_sucs.end(), task_idx);
+            if (next_iter != cur_sucs.end()) {
+                next_idx = *next_iter;
+                break;
+            }
+        }
+        CPSet.push_back(tg_.tasks[next_idx]);
+        cur_idx = next_idx;
+    }
+
+    // schedule CPSet tasks
+    std::vector<std::vector<float>> DP_table;
+    std::vector<std::vector<unsigned>> DP_trace;
+    for (auto CP_idx = 0; CP_idx < CPSet.size(); CP_idx++) {
+        std::vector<float> DP_table_col;
+        std::vector<unsigned> DP_trace_col;
+        auto cur_task = CPSet[CP_idx];
+        for (auto fu_idx : p_.opt_fu_idx[CPSet[CP_idx].op.type]) {
+            float comp_time = cur_task.comp_size / p_.fu_info[fu_idx].speed;
+            if (CP_idx == 0) {
+                DP_table_col.push_back(comp_time);
+                DP_table_col.push_back(0);
+            } else {
+                unsigned min_pre_idx = 0;
+                float min_time = FLT_MAX;
+                for (auto pre_idx = 0; pre_idx < DP_table.back().size(); pre_idx++) {
+                    unsigned pre_fu_idx = p_.opt_fu_idx[CPSet[CP_idx - 1].op.type][pre_idx];
+                    float comm_time = cur_task.out_size / p_.bandwidth[pre_fu_idx][fu_idx];
+                    if (comp_time + comm_time < min_time) {
+                        min_pre_idx = pre_idx;
+                        min_time = comp_time + comm_time;
+                    }
+                }
+                DP_table_col.push_back(min_time);
+                DP_trace_col.push_back(min_pre_idx);
+            }
+        }
+        DP_table.push_back(DP_table_col);
+        DP_trace.push_back(DP_trace_col);
+    }
+
+    unsigned pre_idx = 0;
+    for (auto task_idx = CPSet.size() - 1; task_idx > 0; task_idx--) {
+        auto cur_type = CPSet[task_idx].op.type;
+        auto pre_type = CPSet[task_idx - 1].op.type;
+        if (task_idx == CPSet.size() - 1) {
+            auto last_idx = std::max_element(DP_table[task_idx].begin(), DP_table[task_idx].end())
+                    - DP_table[task_idx].end();
+            pre_idx = DP_trace[task_idx][last_idx];
+            unsigned fu_idx = p_.opt_fu_idx[cur_type][last_idx];
+            unsigned pre_fu_idx = p_.opt_fu_idx[pre_type][pre_idx];
+            CPSet[task_idx].fu_idx = fu_idx;
+            CPSet[task_idx - 1].fu_idx = pre_fu_idx;
+        } else {
+            pre_idx = DP_trace[task_idx][pre_idx];
+            unsigned pre_fu_idx = p_.opt_fu_idx[pre_type][pre_idx];
+            CPSet[task_idx - 1].fu_idx = pre_fu_idx;
+        }
+    }
 }

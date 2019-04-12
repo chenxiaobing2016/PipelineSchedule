@@ -11,6 +11,8 @@ public:
 
   void runHEFT();
 
+  void runCPOP();
+
   void dumpScheduleResult(const std::string& file_name = "schedule_result");
 
   void dumpTaskGraph(const std::string& file_name = "task_info");
@@ -30,6 +32,8 @@ private:
   void sortByUpAndDownwardRank();
 
   void scheduleHEFT();
+
+  void scheduleCPOP();
 
   // if src and dst are the same, the value is 0,
   // if src and dst are not connected, the value is -1.

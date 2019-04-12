@@ -261,6 +261,41 @@ void Generator::genRandomTaskDAG(int height, int width) {
           adj_matrix[task_idx][concat_vec[start + offset]] = 1;
       }
   }
+  // TODO(pengshaohui): delete one in one out concat and slice
+
+  for (auto task_iter = tasks.begin(); task_iter != tasks.end(); task_iter++) {
+      auto task = *task_iter;
+      int task_idx = task_iter - tasks.begin();
+      if (task.op.type == CONCAT || task.op.type == SLICE) {
+          int pre_nr = 0;
+          int suc_nr = 0;
+          int pre_task_idx = -1;
+          int suc_task_idx = -1;
+          for (auto pre_idx = 0; pre_idx < tasks.size(); pre_idx++) {
+              if (adj_matrix[pre_idx][task_idx] >= 0) {
+                  pre_nr++;
+                  pre_task_idx = pre_idx;
+              }
+          }
+          for (auto suc_idx = 0; suc_idx < tasks.size(); suc_idx++) {
+              if (adj_matrix[task_idx][suc_idx] >= 0) {
+                  suc_nr++;
+                  suc_task_idx = suc_idx;
+              }
+          }
+          if (pre_nr == 1 && suc_nr == 1) {
+              if (tasks[pre_task_idx].op.type == INPUT)
+                  adj_matrix[pre_task_idx][suc_task_idx] = input_size;
+              else
+                  adj_matrix[pre_task_idx][suc_task_idx] = 1;
+              task_iter = tasks.erase(task_iter);
+              for (auto links : adj_matrix) {
+                  links.erase(links.begin() + task_idx);
+              }
+              adj_matrix.erase(adj_matrix.begin() + task_idx);
+          }
+      }
+  }
   // TODO(pengshaihui): check backward
 
   // traverse from top to bottom for set size

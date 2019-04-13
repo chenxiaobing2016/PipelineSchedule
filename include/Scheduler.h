@@ -17,6 +17,10 @@ public:
 
   void dumpTaskGraph(const std::string& file_name = "task_info");
 
+  TaskGraph getScheduledTaskGraph();
+
+  Processor getScheduledProcessor();
+
 private:
   // reckon average computational cost for each task.
   void reckonAvgCompCost();

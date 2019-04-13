@@ -70,6 +70,14 @@ void Scheduler::dumpTaskGraph(const std::string &file_name) {
   }
 }
 
+TaskGraph Scheduler::getScheduledTaskGraph() {
+  return tg_;
+}
+
+Processor Scheduler::getScheduledProcessor() {
+  return  p_;
+}
+
 void Scheduler::reckonAvgCompCost() {
   auto tasks = tg_.tasks;
   unsigned task_nr = tasks.size();

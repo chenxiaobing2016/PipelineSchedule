@@ -1,4 +1,5 @@
 #include <iostream>
+#include <Metrics.h>
 #include "Generator.h"
 #include "Scheduler.h"
 
@@ -38,13 +39,13 @@ void genTaskGraph(std::vector<TaskGraph>& task_graphs, Processor& processor) {
   // A2. ?
   int input_nr = 1;
   int output_nr = 1;
-  int conv_nr = 1;
-  int fc_nr = 1;
-  int pool_nr = 1;
-  int active_nr = 1;
-  int binary_nr = 1;
-  int concat_nr = 1;
-  int slice_nr = 1;
+  int conv_nr = 2;
+  int fc_nr = 2;
+  int pool_nr = 2;
+  int active_nr = 2;
+  int binary_nr = 2;
+  int concat_nr = 2;
+  int slice_nr = 2;
   vector<int> fu_nr = {input_nr, output_nr, conv_nr, pool_nr, fc_nr, active_nr, binary_nr, concat_nr, slice_nr};
   for (int op_idx = 0; op_idx < 9; op_idx++) {
     for (auto fu_idx = 0; fu_idx < fu_nr[op_idx]; fu_idx++) {
@@ -84,9 +85,17 @@ int main() {
     heft.runHEFT();
     heft.dumpScheduleResult();
     heft.dumpTaskGraph();
+    TaskGraph sched_tg = heft.getScheduledTaskGraph();
+    Processor sched_p = heft.getScheduledProcessor();
+
+    Metrics m = Metrics(sched_tg, sched_p);
+    float speed_up = m.getSppedUp();
+    std::cout << "HEFT speed up: " << speed_up << std::endl;
+
     for (auto& fu : processor.fu_info) {
       fu.clearTaskItem();
     }
+
     break;
   }
   return 0;

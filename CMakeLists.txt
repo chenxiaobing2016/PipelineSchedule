@@ -12,4 +12,4 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -fPIC -Wreturn-type -Wparenth
 include_directories("include")
 file(GLOB_RECURSE SRC src/*.cpp)
 
-add_executable(pplsche main.cpp include/Util.h include/Processor.h include/Generator.h src/Generator.cpp include/Scheduler.h src/Scheduler.cpp src/Processor.cpp)
+add_executable(pplsche main.cpp include/Util.h include/Processor.h include/Generator.h src/Generator.cpp include/Scheduler.h src/Scheduler.cpp src/Processor.cpp include/Metrics.h src/Metrics.cpp)

@@ -264,10 +264,10 @@ void Scheduler::scheduleHEFT() {
 }
 
 void Scheduler::scheduleCPOP() {
-    std::vector<TaskNode> CPSet;
-    CPSet.push_back(tg_.tasks.front());
+    std::vector<unsigned > CPSet = {0};
     unsigned cur_idx = 0;
-    while (CPSet.back().op.type != OUTPUT) {
+    auto back_task = tg_.tasks[CPSet.back()];
+    while (back_task.op.type != OUTPUT) {
         unsigned next_idx = -1;
         auto cur_sucs = tg_.successor[cur_idx];
         for (auto task_idx : CPOP_sorted_task_idx_) {
@@ -277,8 +277,9 @@ void Scheduler::scheduleCPOP() {
                 break;
             }
         }
-        CPSet.push_back(tg_.tasks[next_idx]);
+        CPSet.push_back(next_idx);
         cur_idx = next_idx;
+        back_task = tg_.tasks[CPSet.back()];
     }
 
     // schedule CPSet tasks
@@ -287,8 +288,8 @@ void Scheduler::scheduleCPOP() {
     for (auto CP_idx = 0; CP_idx < CPSet.size(); CP_idx++) {
         std::vector<float> DP_table_col;
         std::vector<unsigned> DP_trace_col;
-        auto cur_task = CPSet[CP_idx];
-        for (auto fu_idx : p_.opt_fu_idx[CPSet[CP_idx].op.type]) {
+        auto cur_task = tg_.tasks[CPSet[CP_idx]];
+        for (auto fu_idx : p_.opt_fu_idx[cur_task.op.type]) {
             float comp_time = cur_task.comp_size / p_.fu_info[fu_idx].speed;
             if (CP_idx == 0) {
                 DP_table_col.push_back(comp_time);
@@ -297,7 +298,7 @@ void Scheduler::scheduleCPOP() {
                 unsigned min_pre_idx = 0;
                 float min_time = FLT_MAX;
                 for (auto pre_idx = 0; pre_idx < DP_table.back().size(); pre_idx++) {
-                    unsigned pre_fu_idx = p_.opt_fu_idx[CPSet[CP_idx - 1].op.type][pre_idx];
+                    unsigned pre_fu_idx = p_.opt_fu_idx[tg_.tasks[CPSet[CP_idx - 1]].op.type][pre_idx];
                     float comm_time = cur_task.out_size / p_.bandwidth[pre_fu_idx][fu_idx];
                     if (comp_time + comm_time < min_time) {
                         min_pre_idx = pre_idx;
@@ -314,20 +315,125 @@ void Scheduler::scheduleCPOP() {
 
     unsigned pre_idx = 0;
     for (auto task_idx = CPSet.size() - 1; task_idx > 0; task_idx--) {
-        auto cur_type = CPSet[task_idx].op.type;
-        auto pre_type = CPSet[task_idx - 1].op.type;
+        auto cur_type = tg_.tasks[CPSet[task_idx]].op.type;
+        auto pre_type = tg_.tasks[CPSet[task_idx - 1]].op.type;
         if (task_idx == CPSet.size() - 1) {
             auto last_idx = std::max_element(DP_table[task_idx].begin(), DP_table[task_idx].end())
                     - DP_table[task_idx].end();
             pre_idx = DP_trace[task_idx][last_idx];
             unsigned fu_idx = p_.opt_fu_idx[cur_type][last_idx];
             unsigned pre_fu_idx = p_.opt_fu_idx[pre_type][pre_idx];
-            CPSet[task_idx].fu_idx = fu_idx;
-            CPSet[task_idx - 1].fu_idx = pre_fu_idx;
+            tg_.tasks[CPSet[task_idx]].fu_idx = fu_idx;
+            tg_.tasks[CPSet[task_idx - 1]].fu_idx = pre_fu_idx;
         } else {
             pre_idx = DP_trace[task_idx][pre_idx];
             unsigned pre_fu_idx = p_.opt_fu_idx[pre_type][pre_idx];
-            CPSet[task_idx - 1].fu_idx = pre_fu_idx;
+            tg_.tasks[CPSet[task_idx - 1]].fu_idx = pre_fu_idx;
+        }
+    }
+
+    // processor selection
+    std::vector<unsigned> unschedule_tasks = {0};
+    std::vector<bool> scheduled(tg_.tasks.size(), false);
+
+    while (!unschedule_tasks.empty()) {
+        float max_prio = FLT_MIN;
+        unsigned max_task_idx = UINT_MAX;
+        for (auto candi_task_idx : unschedule_tasks) {
+            auto &candi_task = tg_.tasks[candi_task_idx];
+            bool candi_ready = true;
+            for (auto pre_idx = 0; pre_idx < tg_.precedence[candi_task_idx].size(); pre_idx++) {
+                auto pre_task_idx = tg_.precedence[candi_task_idx][pre_idx];
+                candi_ready = candi_ready && scheduled[pre_task_idx];
+            }
+            if (candi_ready) {
+                if (CPOP_sorted_task_idx_[candi_task_idx] > max_prio) {
+                    max_prio = CPOP_sorted_task_idx_[candi_task_idx];
+                    max_task_idx = candi_task_idx;
+                }
+            } else {
+                continue;
+            }
+        }
+        assert(max_task_idx < UINT_MAX);
+
+        auto cur_schedule_idx = max_task_idx;
+        auto &cur_schedule_task = tg_.tasks[max_task_idx];
+
+        float min_eft = FLT_MAX;
+        unsigned min_fu_idx = UINT_MAX;
+        std::vector<unsigned> candi_fus;
+        auto find_iter = find(CPSet.begin(), CPSet.end(), cur_schedule_idx);
+        if (find_iter != CPSet.end())
+            candi_fus.push_back(cur_schedule_task.fu_idx);
+        else
+            candi_fus = p_.opt_fu_idx[cur_schedule_task.op.type];
+        for (auto fu_idx : candi_fus) {
+            // given fu idx, compute est with pres tasks
+            float min_est = FLT_MAX;
+            for (auto pre_task_idx : tg_.precedence[cur_schedule_idx]) {
+                auto pre_task = tg_.tasks[pre_task_idx];
+                auto speed = p_.bandwidth[pre_task.fu_idx][fu_idx];
+                min_est = std::min(min_est, pre_task.finish_time + pre_task.out_size / speed);
+            }
+            // update avail_j with min_est
+            auto &fu_j = p_.fu_info[fu_idx];
+            float min_avail = FLT_MAX;
+            for (auto insert_pos = fu_j.task_items.size(); insert_pos >= 0; insert_pos++) {
+                // check independence
+                if (insert_pos < fu_j.task_items.size()) {
+                    auto pres = tg_.precedence[cur_schedule_idx];
+                    auto post_idx = fu_j.task_items[insert_pos].task_idx;
+                    if (std::find(pres.begin(), pres.end(), post_idx) != pres.end())
+                        break;
+                }
+                float avail;
+                float length;
+                if (insert_pos > 0)
+                    avail = fu_j.task_items[insert_pos - 1].finish_time;
+                else avail = 0;
+                if (insert_pos < fu_j.task_items.size())
+                    length = FLT_MAX;
+                else
+                    length = fu_j.task_items[insert_pos].start_time - avail;
+                assert(avail <= min_avail);
+                float dura_length = cur_schedule_task.comp_size / fu_j.speed;
+                if (avail >= min_est && length >= dura_length) {
+                    min_avail = avail;
+                } else if (avail <= min_eft && (avail + length >= min_eft + dura_length)) {
+                    min_avail = avail;
+                }
+            }
+            // update actual est
+            min_est = std::max(min_avail, min_est);
+            auto temp_eft = min_est + cur_schedule_task.comp_size / fu_j.speed;
+            if (temp_eft < min_eft) {
+                min_eft = temp_eft;
+                min_fu_idx = fu_idx;
+            }
+        }
+        assert(min_fu_idx < UINT_MAX);
+        tg_.tasks[cur_schedule_idx].fu_idx = min_fu_idx;
+        tg_.tasks[cur_schedule_idx].finish_time = min_eft;
+        tg_.tasks[cur_schedule_idx].start_time = min_eft - (cur_schedule_task.comp_size / p_.fu_info[min_fu_idx].speed);
+        TaskItem cur;
+        cur.task_idx = cur_schedule_idx;
+        cur.start_time = tg_.tasks[cur_schedule_idx].start_time;
+        cur.finish_time = tg_.tasks[cur_schedule_idx].finish_time;
+        p_.fu_info[min_fu_idx].insertTaskItem(cur);
+
+        // delete cur_task from unscheduled and set scheduled
+        auto cur_iter = find(unschedule_tasks.begin(), unschedule_tasks.end(), cur_schedule_idx);
+        assert(cur_iter != unschedule_tasks.end());
+        unschedule_tasks.erase(cur_iter);
+        scheduled[cur_schedule_idx] = true;
+        // insert cur_task's pres to unscheduled tasks
+        for (auto pre_idx : tg_.precedence[cur_schedule_idx]) {
+            if (scheduled[pre_idx]) {
+                continue;
+            } else if (find(unschedule_tasks.begin(), unschedule_tasks.end(), pre_idx) == unschedule_tasks.end()) {
+                unschedule_tasks.push_back(pre_idx);
+            }
         }
     }
 }

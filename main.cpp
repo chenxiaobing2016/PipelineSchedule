@@ -8,7 +8,7 @@ void genTaskGraph(std::vector<TaskGraph>& task_graphs, Processor& processor) {
   float input_size = 1000.0;
   // int v = 1000;
   int v = 10;
-  float alpha = 0.2;  // (0, 1]
+  float alpha = 0.5;  // (0, 1]
   int task_graph_nr = 3;
   int out_degree = 1;
   float out_rate = 0.8;  // (0, 1]

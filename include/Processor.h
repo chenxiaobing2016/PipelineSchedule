@@ -2,11 +2,13 @@
 #define PIPELINESCHEDULE_FUNCTIONUNIT_H_
 
 #include <climits>
+#include <float.h>
 #include <queue>
 #include <unordered_map>
 #include <vector>
 #include <cassert>
 #include <cmath>
+#include <algorithm>
 
 #include "Util.h"
 

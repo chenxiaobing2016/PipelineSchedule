@@ -8,10 +8,10 @@ using namespace std;
 void genTaskGraph(std::vector<TaskGraph>& task_graphs, Processor& processor) {
   float input_size = 1000.0;
   // int v = 1000;
-  int v = 50;
+  int v = 100;
   float alpha = 0.5;  // (0, 1]
-  int task_graph_nr = 1;
-  int out_degree = 3;
+  int task_graph_nr = 2;
+  int out_degree = 10;
   float out_rate = 0.8;  // (0, 1]
   float speed_rate = 0.5;  // (0, 1];
   float ccr = 0.5;  // (0, 1]
@@ -39,12 +39,12 @@ void genTaskGraph(std::vector<TaskGraph>& task_graphs, Processor& processor) {
   // A2. ?
   int input_nr = 1;
   int output_nr = 1;
-  int conv_nr = 2;
-  int fc_nr = 2;
-  int pool_nr = 2;
+  int conv_nr = 4;
+  int fc_nr = 4;
+  int pool_nr = 1;
   int active_nr = 1;
   int binary_nr = 1;
-  int concat_nr = 2;
+  int concat_nr = 1;
   int slice_nr = 1;
   vector<int> fu_nr = {input_nr, output_nr, conv_nr, pool_nr, fc_nr, active_nr, binary_nr, concat_nr, slice_nr};
   for (int op_idx = 0; op_idx < 9; op_idx++) {

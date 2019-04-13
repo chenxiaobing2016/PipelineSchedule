@@ -182,12 +182,11 @@ void Scheduler::sortByUpwardRank() {
   unsigned task_nr = tasks.size();
   HEFT_sorted_task_idx_.resize(task_nr, 0);
   for (unsigned i = 0; i < task_nr; ++i) {
-      std::cout << "uprank" << i << ": " << upward_rank_[i] << std::endl;
     HEFT_sorted_task_idx_[i] = i;
   }
   auto tmp_upward_rank = upward_rank_;
   auto cmp = [&tmp_upward_rank](unsigned a, unsigned b) {
-    return tmp_upward_rank[a] >= tmp_upward_rank[b];
+    return tmp_upward_rank[a] > tmp_upward_rank[b];
   };
   std::sort(HEFT_sorted_task_idx_.begin(), HEFT_sorted_task_idx_.end(), cmp);
 }
@@ -200,10 +199,9 @@ void Scheduler::sortByUpAndDownwardRank() {
     for (unsigned i = 0; i < task_nr; ++i) {
         CPOP_sorted_task_idx_[i] = i;
         tmp_up_plus_down_rank[i] += downward_rank_[i];
-        std::cout << "ud idx i: " << CPOP_sorted_task_idx_[i] << std::endl;
     }
     auto cmp = [&tmp_up_plus_down_rank](unsigned a, unsigned b) {
-        return tmp_up_plus_down_rank[a] >= tmp_up_plus_down_rank[b];
+        return tmp_up_plus_down_rank[a] > tmp_up_plus_down_rank[b];
     };
     std::sort(CPOP_sorted_task_idx_.begin(), CPOP_sorted_task_idx_.end(), cmp);
 }

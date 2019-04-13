@@ -5,6 +5,7 @@
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
+#include <iostream>
 
 #include "Scheduler.h"
 
@@ -130,6 +131,7 @@ void Scheduler::reckonDownwardRank() {
             if (!is_ready) {
                 continue;
             }
+            downward_rank_[idx] = 0;
             for (auto prec_idx : tg_.precedence[idx]) {
                 float comm_speed = p_.op2op_avg_comm_speed[std::make_pair(tasks[prec_idx].op.type,
                                                                           tasks[idx].op.type)];
@@ -180,6 +182,7 @@ void Scheduler::sortByUpwardRank() {
   unsigned task_nr = tasks.size();
   HEFT_sorted_task_idx_.resize(task_nr, 0);
   for (unsigned i = 0; i < task_nr; ++i) {
+      std::cout << "uprank" << i << ": " << upward_rank_[i] << std::endl;
     HEFT_sorted_task_idx_[i] = i;
   }
   auto tmp_upward_rank = upward_rank_;
@@ -197,6 +200,7 @@ void Scheduler::sortByUpAndDownwardRank() {
     for (unsigned i = 0; i < task_nr; ++i) {
         CPOP_sorted_task_idx_[i] = i;
         tmp_up_plus_down_rank[i] += downward_rank_[i];
+        std::cout << "ud idx i: " << CPOP_sorted_task_idx_[i] << std::endl;
     }
     auto cmp = [&tmp_up_plus_down_rank](unsigned a, unsigned b) {
         return tmp_up_plus_down_rank[a] >= tmp_up_plus_down_rank[b];
@@ -287,10 +291,10 @@ void Scheduler::scheduleCPOP() {
         }
         CPSet.push_back(next_idx);
         cur_idx = next_idx;
-        back_task = tg_.tasks[CPSet.back()];
+        back_task = tg_.tasks[next_idx];
     }
 
-    // schedule CPSet tasks
+    // schedule CPSet tasks using DP
     std::vector<std::vector<float>> DP_table;
     std::vector<std::vector<unsigned>> DP_trace;
     for (auto CP_idx = 0; CP_idx < CPSet.size(); CP_idx++) {
@@ -301,13 +305,14 @@ void Scheduler::scheduleCPOP() {
             float comp_time = cur_task.comp_size / p_.fu_info[fu_idx].speed;
             if (CP_idx == 0) {
                 DP_table_col.push_back(comp_time);
-                DP_table_col.push_back(0);
+                DP_trace_col.push_back(0);
             } else {
                 unsigned min_pre_idx = 0;
                 float min_time = FLT_MAX;
+                auto pre_task = tg_.tasks[CPSet[CP_idx - 1]];
                 for (auto pre_idx = 0; pre_idx < DP_table.back().size(); pre_idx++) {
-                    unsigned pre_fu_idx = p_.opt_fu_idx[tg_.tasks[CPSet[CP_idx - 1]].op.type][pre_idx];
-                    float comm_time = cur_task.out_size / p_.bandwidth[pre_fu_idx][fu_idx];
+                    unsigned pre_fu_idx = p_.opt_fu_idx[pre_task.op.type][pre_idx];
+                    float comm_time = pre_task.out_size / p_.bandwidth[pre_fu_idx][fu_idx];
                     if (comp_time + comm_time < min_time) {
                         min_pre_idx = pre_idx;
                         min_time = comp_time + comm_time;
@@ -321,21 +326,22 @@ void Scheduler::scheduleCPOP() {
         DP_trace.push_back(DP_trace_col);
     }
 
-    unsigned pre_idx = 0;
+    // using DP trace assign fu to CP task
+    unsigned cp_pre_idx = 0;
     for (auto task_idx = CPSet.size() - 1; task_idx > 0; task_idx--) {
         auto cur_type = tg_.tasks[CPSet[task_idx]].op.type;
         auto pre_type = tg_.tasks[CPSet[task_idx - 1]].op.type;
         if (task_idx == CPSet.size() - 1) {
             auto last_idx = std::max_element(DP_table[task_idx].begin(), DP_table[task_idx].end())
-                    - DP_table[task_idx].end();
-            pre_idx = DP_trace[task_idx][last_idx];
+                    - DP_table[task_idx].begin();
+            cp_pre_idx = DP_trace[task_idx][last_idx];
             unsigned fu_idx = p_.opt_fu_idx[cur_type][last_idx];
-            unsigned pre_fu_idx = p_.opt_fu_idx[pre_type][pre_idx];
+            unsigned pre_fu_idx = p_.opt_fu_idx[pre_type][cp_pre_idx];
             tg_.tasks[CPSet[task_idx]].fu_idx = fu_idx;
             tg_.tasks[CPSet[task_idx - 1]].fu_idx = pre_fu_idx;
         } else {
-            pre_idx = DP_trace[task_idx][pre_idx];
-            unsigned pre_fu_idx = p_.opt_fu_idx[pre_type][pre_idx];
+            cp_pre_idx = DP_trace[task_idx][cp_pre_idx];
+            unsigned pre_fu_idx = p_.opt_fu_idx[pre_type][cp_pre_idx];
             tg_.tasks[CPSet[task_idx - 1]].fu_idx = pre_fu_idx;
         }
     }
@@ -346,27 +352,26 @@ void Scheduler::scheduleCPOP() {
 
     while (!unschedule_tasks.empty()) {
         float max_prio = FLT_MIN;
-        unsigned max_task_idx = UINT_MAX;
+        unsigned max_prio_task_idx = UINT_MAX;
         for (auto candi_task_idx : unschedule_tasks) {
             auto &candi_task = tg_.tasks[candi_task_idx];
             bool candi_ready = true;
-            for (auto pre_idx = 0; pre_idx < tg_.precedence[candi_task_idx].size(); pre_idx++) {
-                auto pre_task_idx = tg_.precedence[candi_task_idx][pre_idx];
+            for (auto pre_task_idx : tg_.precedence[candi_task_idx]) {
                 candi_ready = candi_ready && scheduled[pre_task_idx];
             }
             if (candi_ready) {
-                if (CPOP_sorted_task_idx_[candi_task_idx] > max_prio) {
-                    max_prio = CPOP_sorted_task_idx_[candi_task_idx];
-                    max_task_idx = candi_task_idx;
+                if (upward_rank_[candi_task_idx] + downward_rank_[candi_task_idx] > max_prio) {
+                    max_prio = upward_rank_[candi_task_idx] + downward_rank_[candi_task_idx];
+                    max_prio_task_idx = candi_task_idx;
                 }
             } else {
                 continue;
             }
         }
-        assert(max_task_idx < UINT_MAX);
+        assert(max_prio_task_idx < UINT_MAX);
 
-        auto cur_schedule_idx = max_task_idx;
-        auto &cur_schedule_task = tg_.tasks[max_task_idx];
+        auto cur_schedule_idx = max_prio_task_idx;
+        auto &cur_schedule_task = tg_.tasks[max_prio_task_idx];
 
         float min_eft = FLT_MAX;
         unsigned min_fu_idx = UINT_MAX;
@@ -384,10 +389,12 @@ void Scheduler::scheduleCPOP() {
                 auto speed = p_.bandwidth[pre_task.fu_idx][fu_idx];
                 min_est = std::min(min_est, pre_task.finish_time + pre_task.out_size / speed);
             }
+            if (tg_.precedence[cur_schedule_idx].empty())
+                min_est = 0;
             // update avail_j with min_est
             auto &fu_j = p_.fu_info[fu_idx];
             float min_avail = FLT_MAX;
-            for (auto insert_pos = fu_j.task_items.size(); insert_pos >= 0; insert_pos++) {
+            for (int insert_pos = fu_j.task_items.size(); insert_pos >= 0; insert_pos--) {
                 // check independence
                 if (insert_pos < fu_j.task_items.size()) {
                     auto pres = tg_.precedence[cur_schedule_idx];
@@ -399,8 +406,9 @@ void Scheduler::scheduleCPOP() {
                 float length;
                 if (insert_pos > 0)
                     avail = fu_j.task_items[insert_pos - 1].finish_time;
-                else avail = 0;
-                if (insert_pos < fu_j.task_items.size())
+                else
+                    avail = 0;
+                if (insert_pos == fu_j.task_items.size())
                     length = FLT_MAX;
                 else
                     length = fu_j.task_items[insert_pos].start_time - avail;
@@ -436,7 +444,7 @@ void Scheduler::scheduleCPOP() {
         unschedule_tasks.erase(cur_iter);
         scheduled[cur_schedule_idx] = true;
         // insert cur_task's pres to unscheduled tasks
-        for (auto pre_idx : tg_.precedence[cur_schedule_idx]) {
+        for (auto pre_idx : tg_.successor[cur_schedule_idx]) {
             if (scheduled[pre_idx]) {
                 continue;
             } else if (find(unschedule_tasks.begin(), unschedule_tasks.end(), pre_idx) == unschedule_tasks.end()) {

@@ -84,8 +84,9 @@ int main() {
   Processor processor;
   // NetType nn = LENET;
   //NetType nn = ALEXNET;
-  NetType nn = GOOGLENET;
   // NetType nn = VGG16;
+  // NetType nn = GOOGLENET;
+  NetType nn = RESNET18;
   genTaskGraph(task_graphs, processor, nn);
   for (TaskGraph& tg : task_graphs) {
       std::cout << "HEFT:" << std::endl;

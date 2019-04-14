@@ -769,8 +769,75 @@ void Generator::genNNTaskDAG(NetType nn) {
         set_fc(138, 1000, 1000);
         set_task(139, OUTPUT, 1000, 1000, 1000, 1);
         set_line_link(136, 139);
-    } else if (nn == RESNET) {
+    } else if (nn == RESNET18) {
+        auto res_block = [&](unsigned src, int ci, int hi_m_wi, int str, int co, bool branch) -> unsigned {
+            int ho_m_wo = hi_m_wi / (str * str);
+            set_conv(src+1, hi_m_wi, ho_m_wo, ci, co, 3*3);
+            set_task(src+2, ACTIVE, ho_m_wo, ho_m_wo, ho_m_wo, co);
+            set_task(src+3, ACTIVE, ho_m_wo, ho_m_wo, ho_m_wo, co);
+            set_task(src+4, ACTIVE, ho_m_wo, ho_m_wo, ho_m_wo, 1);
+            set_conv(src+5, ho_m_wo, ho_m_wo, co, co, 3*3);
+            set_task(src+6, ACTIVE, ho_m_wo, ho_m_wo, ho_m_wo, co);
+            set_task(src+7, ACTIVE, ho_m_wo, ho_m_wo, ho_m_wo, co);
+            set_line_link(src+1, src+7);
+            if (branch) {
+                set_conv(src+8, hi_m_wi, ho_m_wo, ci, co, 1*1);
+                set_task(src+9, ACTIVE, ho_m_wo, ho_m_wo, ho_m_wo, co);
+                set_task(src+10, ACTIVE, ho_m_wo, ho_m_wo, ho_m_wo, co);
+                set_line_link(src+8, src+10);
+                set_source_link(src, {src+1, src+8});
+                set_task(src+11, BINARY, 0, 0, 0, 0);
+                set_sink_link(src+11, {src+7, src+10});
+                set_task(src+12, ACTIVE, ho_m_wo, ho_m_wo, ho_m_wo, 1);
+                set_line_link(src+11, src+12);
+                return src+11;
+            } else {
+                set_line_link(src, src+1);
+                set_task(src+8, BINARY, 0, 0, 0, 0);
+                set_sink_link(src+8, {src, src+7});
+                set_task(src+9, ACTIVE, ho_m_wo, ho_m_wo, ho_m_wo, 1);
+                set_line_link(src+8, src+9);
+                return src+9;
+            }
+        };
+        nn_tasks.resize(89);
+        unsigned last_idx = 0;
+        set_task(0, INPUT, 224*224*3, 224*224*3, 224*224*3, 1);
+        set_conv(1, 224*224, 112*112, 3, 64, 7*7);
+        set_task(2, ACTIVE, 112*112*64, 112*112*64, 112*112*64, 64);
+        set_task(3, ACTIVE, 112*112*64, 112*112*64, 112*112*64, 1);
+        set_task(4, ACTIVE, 112*112*64, 112*112*64, 112*112*64, 1);
+        set_pool(5, 112*112, 56*56, 64, 64, 3*3);
+        set_line_link(0, 5);
 
+        // 2a
+        last_idx = res_block(5, 64, 56*56, 1, 64, true);
+        // 2b
+        assert(last_idx == 16);
+        last_idx = res_block(last_idx, 64, 56*56, 1, 64, false);
+        // 3a
+        assert(last_idx == 25);
+        last_idx = res_block(last_idx, 64, 56*56, 2, 128, true);
+        // 3b
+        assert(last_idx == 36);
+        last_idx = res_block(last_idx, 128, 28*28, 1, 128, false);
+        // 4a
+        assert(last_idx == 45);
+        last_idx = res_block(last_idx, 128, 28*28, 2, 256, true);
+        // 4b
+        assert(last_idx == 56);
+        last_idx = res_block(last_idx, 256, 14*14, 1, 256, false);
+        // 5a
+        assert(last_idx == 65);
+        last_idx = res_block(last_idx, 256, 14*14, 2, 512, true);
+        // 5b
+        assert(last_idx == 76);
+        last_idx = res_block(last_idx, 512, 7*7, 1, 512, false);
+        set_pool(last_idx+1, 7*7, 1*1, 512, 512, 7*7);
+        set_fc(last_idx+2, 512, 1000);
+        set_task(last_idx+3, OUTPUT, 1000, 1000, 1000, 1);
+        set_line_link(85, 88);
+        assert(last_idx == 85);
     } else {
         cout << "not support nn" << endl;
         assert(0);

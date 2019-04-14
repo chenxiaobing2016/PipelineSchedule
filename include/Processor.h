@@ -19,7 +19,7 @@ enum NetType {
     ALEXNET,
     VGG16,
     GOOGLENET,
-    RESNET
+    RESNET18
 };
 
 enum OperationType {

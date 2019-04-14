@@ -5,7 +5,7 @@
 
 using namespace std;
 
-void genTaskGraph(std::vector<TaskGraph>& task_graphs, Processor& processor) {
+void genTaskGraph(std::vector<TaskGraph>& task_graphs, Processor& processor, int nn = -1) {
   float input_size = 1000.0;
   // int v = 1000;
   int v = 100;
@@ -23,8 +23,12 @@ void genTaskGraph(std::vector<TaskGraph>& task_graphs, Processor& processor) {
                                   out_rate,
                                   speed_rate,
                                   ccr);
-  test_generator.genRandomTaskDAGs();
-  test_generator.genDAGdots();
+  if (nn == -1) {
+      test_generator.genRandomTaskDAGs();
+      test_generator.genDAGdots();
+  } else {
+      test_generator.genNNTaskDAG((NetType)nn);
+  }
   task_graphs = test_generator.getTaskGraphs();
 
   // cout << "correctness: " << test_generator.checkCycleAndConnect(task_graphs[2]) << endl;
@@ -41,11 +45,11 @@ void genTaskGraph(std::vector<TaskGraph>& task_graphs, Processor& processor) {
   int output_nr = 1;
   int conv_nr = 4;
   int fc_nr = 4;
-  int pool_nr = 1;
-  int active_nr = 1;
-  int binary_nr = 1;
-  int concat_nr = 1;
-  int slice_nr = 1;
+  int pool_nr = 4;
+  int active_nr = 4;
+  int binary_nr = 4;
+  int concat_nr = 4;
+  int slice_nr = 4;
   vector<int> fu_nr = {input_nr, output_nr, conv_nr, pool_nr, fc_nr, active_nr, binary_nr, concat_nr, slice_nr};
   for (int op_idx = 0; op_idx < 9; op_idx++) {
     for (auto fu_idx = 0; fu_idx < fu_nr[op_idx]; fu_idx++) {
@@ -78,13 +82,17 @@ void configParams(TaskGraph& tg, Processor& processor) {
 int main() {
   std::vector<TaskGraph> task_graphs;
   Processor processor;
-  genTaskGraph(task_graphs, processor);
+  // NetType nn = LENET;
+  //NetType nn = ALEXNET;
+  NetType nn = GOOGLENET;
+  // NetType nn = VGG16;
+  genTaskGraph(task_graphs, processor, nn);
   for (TaskGraph& tg : task_graphs) {
       std::cout << "HEFT:" << std::endl;
     configParams(tg, processor);
     Scheduler heft = Scheduler(tg, processor);
     heft.runHEFT();
-    // heft.dumpScheduleResult();
+    heft.dumpScheduleResult();
     // heft.dumpTaskGraph();
     TaskGraph sched_tg_heft = heft.getScheduledTaskGraph();
     Processor sched_p_heft = heft.getScheduledProcessor();
@@ -103,8 +111,8 @@ int main() {
     std::cout << "CPOP:" << std::endl;
     Scheduler cpop = Scheduler(tg, processor);
     cpop.runCPOP();
-    // cpop.dumpScheduleResult();
-    // cpop.dumpTaskGraph();
+    cpop.dumpScheduleResult();
+    cpop.dumpTaskGraph();
     TaskGraph sched_tg_cpop = cpop.getScheduledTaskGraph();
     Processor sched_p_cpop = cpop.getScheduledProcessor();
 

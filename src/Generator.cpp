@@ -564,3 +564,216 @@ std::string Generator::opTypeToName(OperationType ot) {
             return "UNKNOWN";
     }
 }
+
+void Generator::genNNTaskDAG(NetType nn) {
+    task_graphs.clear();
+    TaskGraph net;
+    auto &nn_tasks = net.tasks;
+    auto &comm_size = net.comm_size;
+    auto set_task = [&](int idx, OperationType ot, float in_size,
+            float out_size, float comp_size, float min_size) {
+        nn_tasks[idx].in_size = in_size;
+        nn_tasks[idx].out_size = out_size;
+        nn_tasks[idx].comp_size = comp_size;
+        nn_tasks[idx].op.type = ot;
+        nn_tasks[idx].op.min_size = min_size;
+    };
+    auto set_conv = [&](int idx, int hi_m_wi, int ho_m_wo, int ci, int co,
+                        int kx_m_ky) {
+        nn_tasks[idx].op.type = CONV;
+        nn_tasks[idx].op.min_size = kx_m_ky * ci;
+        nn_tasks[idx].in_size = hi_m_wi * ci;
+        nn_tasks[idx].out_size = ho_m_wo * co;
+        nn_tasks[idx].comp_size = ho_m_wo * co * kx_m_ky * ci;
+    };
+    auto set_pool = [&](int idx, int hi_m_wi, int ho_m_wo, int ci, int co,
+                        int kx_m_ky) {
+        nn_tasks[idx].op.type = POOL;
+        nn_tasks[idx].op.min_size = kx_m_ky * ci;
+        nn_tasks[idx].in_size = hi_m_wi * ci;
+        nn_tasks[idx].out_size = ho_m_wo * co;
+        nn_tasks[idx].comp_size = ho_m_wo * co * kx_m_ky;
+    };
+    auto set_fc = [&](int idx, int ci, int co) {
+        nn_tasks[idx].op.type = FC;
+        nn_tasks[idx].op.min_size = ci;
+        nn_tasks[idx].in_size = ci;
+        nn_tasks[idx].out_size = co;
+        nn_tasks[idx].comp_size = co * ci;
+    };
+    auto set_line_link = [&](unsigned start_id, unsigned finish_id) {
+        if (comm_size.empty()) {
+            int task_nr = nn_tasks.size();
+            vector<vector<float>> init(task_nr, vector<float>(task_nr, -1));
+            comm_size = init;
+        }
+        for (auto idx_i = start_id; idx_i < finish_id; idx_i++) {
+            comm_size[idx_i][idx_i+1] = nn_tasks[idx_i].out_size;
+        }
+    };
+    auto set_source_link = [&](unsigned src, vector<unsigned> dsts) {
+        if (comm_size.empty()) {
+            int task_nr = nn_tasks.size();
+            vector<vector<float>> init(task_nr, vector<float>(task_nr, -1));
+            comm_size = init;
+        }
+        for (auto dst : dsts) {
+            comm_size[src][dst] = nn_tasks[src].out_size;
+        }
+    };
+    auto set_sink_link = [&](unsigned sink, vector<unsigned> srcs) {
+        if (comm_size.empty()) {
+            int task_nr = nn_tasks.size();
+            vector<vector<float>> init(task_nr, vector<float>(task_nr, -1));
+            comm_size = init;
+        }
+        for (auto src : srcs) {
+            comm_size[src][sink] = nn_tasks[src].out_size;
+            nn_tasks[sink].in_size += nn_tasks[src].out_size;
+            nn_tasks[sink].out_size += nn_tasks[src].out_size;
+            nn_tasks[sink].comp_size += nn_tasks[src].out_size;
+            nn_tasks[sink].op.min_size += 1;
+        }
+    };
+    if (nn == LENET) {
+        nn_tasks.resize(8);
+        set_task(0, INPUT, 32*32, 32*32, 32*32, 1);
+        set_conv(1, 32*32, 28*28, 1, 6, 5*5);
+        set_pool(2, 28*28, 14*14, 6, 6, 2*2);
+        set_conv(3, 14*14, 10*10, 6, 16, 5*5);
+        set_pool(4, 10*10, 5*5, 16, 16, 2*2);
+        set_fc(5, 5*5*16, 120);
+        set_fc(6, 120, 80);
+        set_task(7, OUTPUT, 80, 80, 80, 1);
+        set_line_link(0, 7);
+    } else if (nn == ALEXNET) {
+        nn_tasks.resize(22);
+        set_task(0, INPUT, 227*227*3, 227*227*3, 227*227*3, 1);
+        set_conv(1, 227*227, 55*55, 3, 96, 11*11);
+        set_task(2, ACTIVE, 55*55*96, 55*55*96, 55*55*96, 1);
+        set_pool(3, 55*55, 27*27, 96, 96, 3*3);
+        set_task(4, ACTIVE, 27*27*96, 27*27*96, 27*27*96*5, 96);
+        set_conv(5, 27*27, 27*27, 96, 256, 5*5);
+        set_task(6, ACTIVE, 27*27*256, 27*27*256, 27*27*256, 1);
+        set_pool(7, 27*27, 13*13, 256, 256, 3*3);
+        set_task(8, ACTIVE, 13*13*256, 13*13*256, 13*13*256*5, 256);
+        set_conv(9, 13*13, 13*13, 256, 384, 3*3);
+        set_task(10, ACTIVE, 13*13*384, 13*13*384, 13*13*384, 1);
+        set_conv(11, 13*13, 13*13, 384, 384, 3*3);
+        set_task(12, ACTIVE, 13*13*384, 13*13*384, 13*13*384, 1);
+        set_conv(13, 13*13, 13*13, 384, 256, 3*3);
+        set_task(14, ACTIVE, 13*13*256, 13*13*256, 13*13*256, 1);
+        set_pool(15, 13*13, 6*6, 256, 256, 3*3);
+        set_fc(16, 6*6*256, 4096);
+        set_task(17, ACTIVE, 4096, 4096, 4096, 1);
+        set_fc(18, 4096, 4096);
+        set_task(19, ACTIVE, 4096, 4096, 4096, 1);
+        set_fc(20, 4096, 1000);
+        set_task(21, OUTPUT, 1000, 1000, 1000, 1);
+        set_line_link(0, 21);
+    } else if (nn == VGG16) {
+        nn_tasks.resize(22);
+        set_task(0, INPUT, 224*224*3, 224*224*3, 224*224*3, 1);
+        set_conv(1, 224*224, 224*224, 3, 64, 3*3);
+        set_conv(2, 224*224, 224*224, 64, 64, 3*3);
+        set_pool(3, 224*224, 112*112, 64, 64, 2*2);
+        set_conv(4, 112*112, 112*112, 64, 128, 3*3);
+        set_conv(5, 112*112, 112*112, 128, 128, 3*3);
+        set_pool(6, 112*112, 56*56, 128, 128, 2*2);
+        set_conv(7, 56*56, 56*56, 128, 256, 3*3);
+        set_conv(8, 56*56, 56*56, 256, 256, 3*3);
+        set_pool(9, 56*56, 28*28, 256, 256, 2*2);
+        set_conv(10, 28*28, 28*28, 256, 512, 3*3);
+        set_conv(11, 28*28, 28*28, 512, 512, 3*3);
+        set_conv(12, 28*28, 28*28, 512, 512, 3*3);
+        set_pool(13, 28*28, 14*14, 512, 512, 2*2);
+        set_conv(14, 14*14, 14*14, 512, 512, 3*3);
+        set_conv(15, 14*14, 14*14, 512, 512, 3*3);
+        set_conv(16, 14*14, 14*14, 512, 512, 3*3);
+        set_pool(17, 14*14, 7*7, 512, 512, 2*2);
+        set_fc(18, 7*7*512, 4096);
+        set_fc(19, 4096, 4096);
+        set_fc(20, 4096, 1000);
+        set_task(21, OUTPUT, 1000, 1000, 1000, 1);
+        set_line_link(0, 21);
+    } else if (nn == GOOGLENET) {
+        nn_tasks.resize(140);
+        unsigned last_idx;
+        set_task(0, INPUT, 224*224*3, 224*224*3, 224*224*3, 1);
+        set_conv(1, 224*224, 112*112, 3, 64, 7*7);
+        set_task(2, ACTIVE, 112*112*64, 112*112*64, 112*112*64, 1);
+        set_pool(3, 112*112, 56*56, 64, 64, 3*3);
+        set_conv(4, 56*56, 56*56, 64, 64, 1*1);
+        set_task(5, ACTIVE, 56*56*64, 56*56*64, 56*56*64, 1);
+        set_conv(6, 56*56, 56*56, 64, 192, 3*3);
+        set_task(7, ACTIVE, 56*56*192, 56*56*192, 56*56*192, 1);
+        set_pool(8, 56*56, 28*28, 192, 192, 3*3);
+        set_line_link(0,8);
+        // link line
+
+        auto inception_block = [&](unsigned src, int hi_m_wi,
+                int ci, int co1m1,
+                int co3m3r, int co3m3,
+                int co5m5r, int co5m5,
+                int copool) -> unsigned {
+            set_conv(src+1, hi_m_wi, hi_m_wi, ci, co1m1, 1*1); // 1*1
+            set_task(src+2, ACTIVE, hi_m_wi*co1m1, hi_m_wi*co1m1, hi_m_wi*co1m1, 1); // 1*1
+            set_line_link(src+1, src+2);
+            set_conv(src+3, hi_m_wi, hi_m_wi, ci, co3m3r, 1*1); // 3*3 r
+            set_task(src+4, ACTIVE, hi_m_wi*co3m3r, hi_m_wi*co3m3r, hi_m_wi*co3m3r, 1); // 1*1
+            set_conv(src+5, hi_m_wi, hi_m_wi, co3m3r, co3m3, 3*3); // 3*3
+            set_task(src+6, ACTIVE, hi_m_wi*co3m3, hi_m_wi*co3m3, hi_m_wi*co3m3, 1); // 1*1
+            set_line_link(src+3, src+6);
+            set_conv(src+7, hi_m_wi, hi_m_wi, ci, co5m5r, 1*1); // 5*5 r
+            set_task(src+8, ACTIVE, hi_m_wi*co5m5r, hi_m_wi*co5m5r, hi_m_wi*co5m5r, 1); // 1*1
+            set_conv(src+9, hi_m_wi, hi_m_wi, co5m5r, co5m5, 5*5); // 5*5
+            set_task(src+10, ACTIVE, hi_m_wi*co5m5, hi_m_wi*co5m5, hi_m_wi*co5m5, 1); // 1*1
+            set_line_link(src+7, src+10);
+            set_pool(src+11, hi_m_wi, hi_m_wi, ci, ci, 3*3);
+            set_conv(src+12, hi_m_wi, hi_m_wi, ci, copool, 1*1); // 1*1
+            set_task(src+13, ACTIVE, hi_m_wi*copool, hi_m_wi*copool, hi_m_wi*copool, 1); // 1*1
+            set_line_link(src+11, src+13);
+            set_source_link(src, {src+1, src+3, src+7, src+11});
+            set_task(src+14, CONCAT, 0, 0, 0, 0);
+            set_sink_link(src+14, {src+2, src+6, src+10, src+13});
+            return src+14;
+        };
+        // 3a
+        // last_idx = 22
+        last_idx = inception_block(8, 28*28, 192, 64, 96, 128, 16, 32, 32);
+        // 3b
+        // last_idx = 36
+        last_idx = inception_block(last_idx, 28*28, 256, 128, 128, 192, 32, 96, 64);
+        assert(last_idx == 36);
+        set_pool(37, 28*28, 14*14, 480, 480, 3*3);
+        set_line_link(36, 37);
+        // 4a
+        last_idx = inception_block(37, 14*14, 480, 192, 96, 208, 16, 48, 64);
+        // 4b
+        last_idx = inception_block(last_idx, 14*14, 512, 160, 112, 224, 24, 64, 64);
+        // 4c
+        last_idx = inception_block(last_idx, 14*14, 512, 128, 128, 256, 24, 64, 64);
+        // 4d
+        last_idx = inception_block(last_idx, 14*14, 512, 112, 144, 288, 32, 64, 64);
+        // 4e
+        last_idx = inception_block(last_idx, 14*14, 528, 256, 160, 320, 32, 128, 128);
+        assert(last_idx == 107);
+        set_pool(108, 14*14, 7*7, 832, 832, 3*3);
+        set_line_link(107, 108);
+        // 5a
+        last_idx = inception_block(108, 7*7, 832, 256, 160, 320, 32, 128, 128);
+        // 5b
+        last_idx = inception_block(last_idx, 7*7, 832, 384, 192, 384, 48, 128, 128);
+        assert(last_idx == 136);
+        set_pool(137, 7*7, 1*1, 1024, 1024, 7*7);
+        set_fc(138, 1000, 1000);
+        set_task(139, OUTPUT, 1000, 1000, 1000, 1);
+        set_line_link(136, 139);
+    } else if (nn == RESNET) {
+
+    } else {
+        cout << "not support nn" << endl;
+        assert(0);
+    }
+    task_graphs.push_back(net);
+}

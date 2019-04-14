@@ -17,7 +17,7 @@
 enum NetType {
     LENET,
     ALEXNET,
-    VGG,
+    VGG16,
     GOOGLENET,
     RESNET
 };

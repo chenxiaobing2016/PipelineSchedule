@@ -9,6 +9,7 @@
 #include <cassert>
 #include <cmath>
 #include <algorithm>
+#include <iostream>
 
 #include "Util.h"
 
@@ -99,6 +100,8 @@ struct TaskNode {
   float out_size;
   float comp_size;
   Operation op;
+
+  unsigned ori_idx;
 
   // assisted data structure.
   unsigned fu_idx;

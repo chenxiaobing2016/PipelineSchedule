@@ -244,9 +244,9 @@ void Generator::genRandomTaskDAG(int height, int width) {
           }
       }
   }
-  for (auto task_idx = 0; task_idx < task_nr; task_idx++) {
+  int temp_nr = tasks.size();
+  for (int task_idx = 0; task_idx < temp_nr; task_idx++) {
       if (!has_pres[task_idx]) {
-          assert(tasks[task_idx].op.type == CONCAT);
           adj_matrix[0][task_idx] = input_size;
       }
       if (!has_sucs[task_idx]) {
@@ -634,6 +634,8 @@ void Generator::genNNTaskDAG(NetType nn) {
             nn_tasks[sink].comp_size += nn_tasks[src].out_size;
             nn_tasks[sink].op.min_size += 1;
         }
+        if (nn_tasks[sink].op.type == BINARY)
+            nn_tasks[sink].out_size /= 2;
     };
     if (nn == LENET) {
         nn_tasks.resize(8);
@@ -766,36 +768,36 @@ void Generator::genNNTaskDAG(NetType nn) {
         last_idx = inception_block(last_idx, 7*7, 832, 384, 192, 384, 48, 128, 128);
         assert(last_idx == 136);
         set_pool(137, 7*7, 1*1, 1024, 1024, 7*7);
-        set_fc(138, 1000, 1000);
+        set_fc(138, 1024, 1000);
         set_task(139, OUTPUT, 1000, 1000, 1000, 1);
         set_line_link(136, 139);
     } else if (nn == RESNET18) {
         auto res_block = [&](unsigned src, int ci, int hi_m_wi, int str, int co, bool branch) -> unsigned {
             int ho_m_wo = hi_m_wi / (str * str);
             set_conv(src+1, hi_m_wi, ho_m_wo, ci, co, 3*3);
-            set_task(src+2, ACTIVE, ho_m_wo, ho_m_wo, ho_m_wo, co);
-            set_task(src+3, ACTIVE, ho_m_wo, ho_m_wo, ho_m_wo, co);
-            set_task(src+4, ACTIVE, ho_m_wo, ho_m_wo, ho_m_wo, 1);
+            set_task(src+2, ACTIVE, ho_m_wo*co, ho_m_wo*co, ho_m_wo*co, co);
+            set_task(src+3, ACTIVE, ho_m_wo*co, ho_m_wo*co, ho_m_wo*co, co);
+            set_task(src+4, ACTIVE, ho_m_wo*co, ho_m_wo*co, ho_m_wo*co, 1);
             set_conv(src+5, ho_m_wo, ho_m_wo, co, co, 3*3);
-            set_task(src+6, ACTIVE, ho_m_wo, ho_m_wo, ho_m_wo, co);
-            set_task(src+7, ACTIVE, ho_m_wo, ho_m_wo, ho_m_wo, co);
+            set_task(src+6, ACTIVE, ho_m_wo*co, ho_m_wo*co, ho_m_wo*co, co);
+            set_task(src+7, ACTIVE, ho_m_wo*co, ho_m_wo*co, ho_m_wo*co, co);
             set_line_link(src+1, src+7);
             if (branch) {
                 set_conv(src+8, hi_m_wi, ho_m_wo, ci, co, 1*1);
-                set_task(src+9, ACTIVE, ho_m_wo, ho_m_wo, ho_m_wo, co);
-                set_task(src+10, ACTIVE, ho_m_wo, ho_m_wo, ho_m_wo, co);
+                set_task(src+9, ACTIVE, ho_m_wo*co, ho_m_wo*co, ho_m_wo*co, co);
+                set_task(src+10, ACTIVE, ho_m_wo*co, ho_m_wo*co, ho_m_wo*co, co);
                 set_line_link(src+8, src+10);
                 set_source_link(src, {src+1, src+8});
                 set_task(src+11, BINARY, 0, 0, 0, 0);
                 set_sink_link(src+11, {src+7, src+10});
-                set_task(src+12, ACTIVE, ho_m_wo, ho_m_wo, ho_m_wo, 1);
+                set_task(src+12, ACTIVE, ho_m_wo*co, ho_m_wo*co, ho_m_wo*co, 1);
                 set_line_link(src+11, src+12);
                 return src+11;
             } else {
                 set_line_link(src, src+1);
                 set_task(src+8, BINARY, 0, 0, 0, 0);
                 set_sink_link(src+8, {src, src+7});
-                set_task(src+9, ACTIVE, ho_m_wo, ho_m_wo, ho_m_wo, 1);
+                set_task(src+9, ACTIVE, ho_m_wo*co, ho_m_wo*co, ho_m_wo*co, 1);
                 set_line_link(src+8, src+9);
                 return src+9;
             }

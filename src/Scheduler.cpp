@@ -451,3 +451,89 @@ void Scheduler::scheduleCPOP() {
         }
     }
 }
+
+TaskGraph Scheduler::splitTaskByHardwareNum(TaskGraph tg) {
+    TaskGraph new_tg;
+    std::vector<TaskNode> new_tasks;
+    std::vector<TaskNode> &old_tasks = tg.tasks;
+    std::vector<int> split_nr;
+    std::vector<int> split_idx;
+
+    // construct new tasks
+    for (auto ori_idx = 0; ori_idx < old_tasks.size(); ori_idx++) {
+        int max_nr = (int )(old_tasks[ori_idx].in_size / old_tasks[ori_idx].op.min_size);
+        int fu_nr = p_.opt_fu_idx[old_tasks[ori_idx].op.type].size();
+        int sp_nr = std::min(max_nr, fu_nr);
+        split_nr.push_back(std::min(max_nr, fu_nr));
+        float in_size = old_tasks[ori_idx].in_size / sp_nr;
+        float comp_size = old_tasks[ori_idx].comp_size / sp_nr;
+        float out_size = old_tasks[ori_idx].out_size / sp_nr;
+        for (auto sp_idx = 0; sp_idx < sp_nr; sp_idx++) {
+            auto new_task = old_tasks[ori_idx];
+            new_task.in_size = in_size;
+            new_task.comp_size = comp_size;
+            new_task.out_size = out_size;
+            new_task.ori_idx = ori_idx;
+            new_tasks.push_back(new_task);
+            split_idx.push_back(sp_idx);
+        }
+    }
+
+    // link new tasks
+    int new_task_nr = new_tasks.size();
+    std::vector<std::vector<float>>new_comm_size(new_task_nr, std::vector<float>(new_task_nr, -1));
+    std::vector<std::vector<float>> &old_comm_size = tg.comm_size;
+    for (auto new_idx = 0; new_idx < new_task_nr; new_idx++) {
+        for (auto suc_idx = 0; suc_idx < new_task_nr; suc_idx++) {
+            if (old_comm_size[new_tasks[new_idx].ori_idx][new_tasks[suc_idx].ori_idx] >= 0) {
+                if(old_tasks[new_tasks[new_idx].ori_idx].out_size != old_tasks[new_tasks[suc_idx].ori_idx].in_size &&
+                   old_tasks[new_tasks[suc_idx].ori_idx].op.type != BINARY &&
+                   old_tasks[new_tasks[suc_idx].ori_idx].op.type != CONCAT) {
+                    int new_ori_idx = new_tasks[new_idx].ori_idx;
+                    int suc_ori_idx = new_tasks[suc_idx].ori_idx;
+                    assert(0);
+                }
+                float new_start_offset, new_end_offset;
+                new_start_offset = split_idx[new_idx] * new_tasks[new_idx].out_size;
+                new_end_offset = new_start_offset + new_tasks[new_idx].out_size;
+                if (new_tasks[suc_idx].op.type == CONCAT ||
+                new_tasks[suc_idx].op.type == BINARY) {
+                    for (auto ori_idx = 0; ori_idx < old_tasks.size(); ori_idx++) {
+                       if (old_comm_size[ori_idx][new_tasks[suc_idx].ori_idx] >= 0 &&
+                       ori_idx < new_tasks[new_idx].ori_idx) {
+                          new_start_offset += old_tasks[ori_idx].out_size;
+                          new_end_offset += old_tasks[ori_idx].out_size;
+                       }
+                    }
+                }
+                float suc_start_offset, suc_end_offset;
+                suc_start_offset = split_idx[suc_idx] * new_tasks[suc_idx].in_size;
+                suc_end_offset = suc_start_offset + new_tasks[suc_idx].in_size;
+                float start = std::max(new_start_offset, suc_start_offset);
+                float end = std::min(new_end_offset, suc_end_offset);
+                // TODO(pengshaohui): deal zero comms_ize
+                if (end > start) {
+                    new_comm_size[new_idx][suc_idx] = end - start;
+                }
+            }
+        }
+    }
+    new_tg.comm_size = new_comm_size;
+    new_tg.tasks = new_tasks;
+    return new_tg;
+}
+void Scheduler::concatTaskOnSameFu() {
+    for (auto fu_idx = 0; fu_idx < p_.fu_info.size(); fu_idx++) {
+        auto &cur_fu = p_.fu_info[fu_idx];
+        for (auto item_iter = cur_fu.task_items.begin() + 1;
+        item_iter != cur_fu.task_items.end();
+        item_iter++) {
+            if ((*item_iter).start_time == (*(item_iter - 1)).finish_time) {
+                unsigned last_idx = (*(item_iter - 1)).task_idx;
+                unsigned cur_idx = (*item_iter).task_idx;
+                (*(item_iter - 1)).finish_time = (*item_iter).finish_time;
+                item_iter = cur_fu.task_items.erase(item_iter);
+            }
+        }
+    }
+}

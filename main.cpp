@@ -8,10 +8,10 @@ using namespace std;
 void genTaskGraph(std::vector<TaskGraph>& task_graphs, Processor& processor, int nn = -1) {
   float input_size = 1000.0;
   // int v = 1000;
-  int v = 100;
+  int v = 20;
   float alpha = 0.5;  // (0, 1]
-  int task_graph_nr = 2;
-  int out_degree = 10;
+  int task_graph_nr = 3;
+  int out_degree = 1;
   float out_rate = 0.8;  // (0, 1]
   float speed_rate = 0.5;  // (0, 1];
   float ccr = 0.5;  // (0, 1]
@@ -43,13 +43,13 @@ void genTaskGraph(std::vector<TaskGraph>& task_graphs, Processor& processor, int
   // A2. ?
   int input_nr = 1;
   int output_nr = 1;
-  int conv_nr = 4;
-  int fc_nr = 4;
-  int pool_nr = 4;
-  int active_nr = 4;
-  int binary_nr = 4;
-  int concat_nr = 4;
-  int slice_nr = 4;
+  int conv_nr = 2;
+  int fc_nr = 2;
+  int pool_nr = 2;
+  int active_nr = 2;
+  int binary_nr = 2;
+  int concat_nr = 2;
+  int slice_nr = 2;
   vector<int> fu_nr = {input_nr, output_nr, conv_nr, pool_nr, fc_nr, active_nr, binary_nr, concat_nr, slice_nr};
   for (int op_idx = 0; op_idx < 9; op_idx++) {
     for (auto fu_idx = 0; fu_idx < fu_nr[op_idx]; fu_idx++) {
@@ -83,14 +83,16 @@ int main() {
   std::vector<TaskGraph> task_graphs;
   Processor processor;
   // NetType nn = LENET;
-  //NetType nn = ALEXNET;
+  // NetType nn = ALEXNET;
   // NetType nn = VGG16;
-  // NetType nn = GOOGLENET;
-  NetType nn = RESNET18;
+  NetType nn = GOOGLENET;
+  // NetType nn = RESNET18;
   genTaskGraph(task_graphs, processor, nn);
+  // genTaskGraph(task_graphs, processor);
   for (TaskGraph& tg : task_graphs) {
       std::cout << "HEFT:" << std::endl;
     configParams(tg, processor);
+    // HEFT
     Scheduler heft = Scheduler(tg, processor);
     heft.runHEFT();
     heft.dumpScheduleResult();
@@ -101,6 +103,7 @@ int main() {
     Metrics m_heft = Metrics(sched_tg_heft, sched_p_heft);
     float speed_up_heft = m_heft.getSppedUp();
     std::cout << "HEFT speed up: " << speed_up_heft << std::endl;
+
     for (auto& fu : processor.fu_info) {
         fu.clearTaskItem();
     }
@@ -129,7 +132,42 @@ int main() {
         task.start_time = task.finish_time = -1;
     }
 
+    auto sp_tg = heft.splitTaskByHardwareNum(tg);
+    configParams(sp_tg, processor);
+    // HEFT + split
+    auto sp_heft = Scheduler(sp_tg, processor);
+    sp_heft.runHEFT();
+    TaskGraph sched_tg_sp_heft = sp_heft.getScheduledTaskGraph();
+    Processor sched_p_sp_heft = sp_heft.getScheduledProcessor();
+
+    Metrics m_sp_heft = Metrics(sched_tg_sp_heft, sched_p_sp_heft);
+    float speed_up_sp_heft = m_sp_heft.getSppedUp();
+    std::cout << "sp HEFT speed up: " << speed_up_sp_heft << std::endl;
+    for (auto& fu : processor.fu_info) {
+        fu.clearTaskItem();
+    }
+    for (auto& task : sp_tg.tasks) {
+        task.fu_idx = 0;
+        task.start_time = task.finish_time = -1;
+    }
+    // CPOP + split
+    auto sp_cpop = Scheduler(sp_tg, processor);
+    sp_cpop.runCPOP();
+    TaskGraph sched_tg_sp_cpop = sp_cpop.getScheduledTaskGraph();
+    Processor sched_p_sp_cpop = sp_cpop.getScheduledProcessor();
+
+    Metrics m_sp_cpop = Metrics(sched_tg_sp_cpop, sched_p_sp_cpop);
+    float speed_up_sp_cpop = m_sp_cpop.getSppedUp();
+    std::cout << "sp CPOP speed up: " << speed_up_sp_cpop << std::endl;
+    for (auto& fu : processor.fu_info) {
+        fu.clearTaskItem();
+    }
+    for (auto& task : sp_tg.tasks) {
+        task.fu_idx = 0;
+        task.start_time = task.finish_time = -1;
+    }
     break;
   }
+
   return 0;
 }

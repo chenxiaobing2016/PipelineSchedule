@@ -21,6 +21,11 @@ public:
 
   Processor getScheduledProcessor();
 
+  // split every task based min_size to support enough parallelism to hardware
+  // and concat tasks split from same task and schedule on the same fu
+  TaskGraph splitTaskByHardwareNum(TaskGraph tg);
+  void concatTaskOnSameFu();
+
 private:
   // reckon average computational cost for each task.
   void reckonAvgCompCost();

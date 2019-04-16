@@ -42,7 +42,10 @@ private:
 
   void scheduleHEFT();
 
+  void setCPsetMinFu(std::vector<unsigned> CPset);
+
   void scheduleCPOP();
+
 
   // if src and dst are the same, the value is 0,
   // if src and dst are not connected, the value is -1.

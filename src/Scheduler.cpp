@@ -229,11 +229,11 @@ void Scheduler::scheduleHEFT() {
       if (task_items.size() == 0) {
         avail_time = 0;
       } else {
-        for (unsigned i = 0; i < task_items.size(); ++i) {
-          if (tg_.isAncestor(task_items[i].task_idx, HEFT_sorted_task_idx_[task_idx])) {
-            no_dep_task_idx = i + 1;
-          }
-        }
+        // for (unsigned i = 0; i < task_items.size(); ++i) {
+        //   if (tg_.isAncestor(task_items[i].task_idx, HEFT_sorted_task_idx_[task_idx])) {
+        //     no_dep_task_idx = i + 1;
+        //   }
+        // }
         for (unsigned i = no_dep_task_idx; i <= task_items.size(); ++i) {
           // i == 0 enter the second body.
           if (i == 0 && task_items[0].start_time >= cpt_time) {
@@ -272,9 +272,89 @@ void Scheduler::scheduleHEFT() {
     p_.fu_info[fu_id].insertTaskItem(ti);
   }
 }
+void Scheduler::setCPsetMinFu(std::vector<unsigned> CPset) {
+    std::unordered_map<OperationType, float> op_comp_size;
+    std::unordered_map<std::pair<OperationType, OperationType>, float> op2op_comm_size;
+    for (unsigned cp_idx = 0u; cp_idx < CPset.size(); ++cp_idx) {
+        auto task_idx = CPset[cp_idx];
+        OperationType opt = tg_.tasks[task_idx].op.type;
+        float size = tg_.tasks[task_idx].comp_size;
+        if (op_comp_size.count(opt) == 0) {
+            op_comp_size[opt] = size;
+        } else {
+            op_comp_size[opt] += size;
+        }
+    }
+    for (unsigned src_cp_idx = 0u; src_cp_idx < CPset.size(); ++src_cp_idx) {
+        for (unsigned dst_cp_idx = 0u; dst_cp_idx < CPset.size(); ++dst_cp_idx) {
+            auto src_idx = CPset[src_cp_idx];
+            auto dst_idx = CPset[dst_cp_idx];
+            if (src_idx != dst_idx && tg_.comm_size[src_idx][dst_idx] > 0) {
+                OperationType src_opt = tg_.tasks[src_idx].op.type;
+                OperationType dst_opt = tg_.tasks[dst_idx].op.type;
+                if (src_opt != dst_opt) {
+                    auto idx = std::make_pair(src_opt, dst_opt);
+                    if (op2op_comm_size.count(idx) == 0) {
+                        op2op_comm_size[idx] = tg_.comm_size[src_idx][dst_idx];
+                    } else {
+                        op2op_comm_size[idx] += tg_.comm_size[src_idx][dst_idx];
+                    }
+                }
+            }
+        }
+    }
 
+    std::unordered_map<OperationType, unsigned> opt_base;
+    std::unordered_map<OperationType, unsigned> opt_idx;
+    std::unordered_map<OperationType, unsigned> opt_size;
+    unsigned size = 1;
+    for (auto i : p_.opt_fu_idx) {
+        if (op_comp_size.count(i.first) != 0) {
+            opt_base[i.first] = size;
+            opt_idx[i.first] = 0;
+            opt_size[i.first] = i.second.size();
+            size *= opt_size[i.first];
+        }
+    }
+
+    float min_time = FLT_MAX;
+    std::unordered_map<OperationType, unsigned> min_opt;
+    for (unsigned case_idx = 0; case_idx < size; ++case_idx) {
+        for (auto i : opt_idx) {
+            opt_idx[i.first] = (case_idx / opt_base[i.first]) % opt_size[i.first];
+        }
+        float tmp_time = 0;
+        for (auto item : op_comp_size) {
+            unsigned fu_idx = p_.opt_fu_idx[item.first][opt_idx[item.first]];
+            tmp_time += item.second / p_.fu_info[fu_idx].speed;
+        }
+        for (auto item : op2op_comm_size) {
+            OperationType src_type = item.first.first;
+            OperationType dst_type = item.first.second;
+            unsigned src_fu_idx = p_.opt_fu_idx[src_type][opt_idx[src_type]];
+            unsigned dst_fu_idx = p_.opt_fu_idx[dst_type][opt_idx[dst_type]];
+            auto idx = std::make_pair(src_type, dst_type);
+            tmp_time += op2op_comm_size[idx] / p_.bandwidth[src_fu_idx][dst_fu_idx];
+        }
+        if (tmp_time < min_time) {
+            min_time = tmp_time;
+            min_opt.clear();
+            for (auto i : opt_idx) {
+                min_opt[i.first] = p_.opt_fu_idx[i.first][opt_idx[i.first]];
+            }
+        }
+    }
+    for (auto i : min_opt) {
+        for (auto cp_idx = 0; cp_idx < CPset.size(); cp_idx++) {
+            auto &task = tg_.tasks[CPset[cp_idx]];
+            if (task.op.type == i.first)
+                task.fu_idx = i.second;
+        }
+    }
+
+}
 void Scheduler::scheduleCPOP() {
-    std::vector<unsigned > CPSet = {0};
+    std::vector<unsigned> CPSet = {0};
     unsigned cur_idx = 0;
     auto back_task = tg_.tasks[CPSet.back()];
     while (back_task.op.type != OUTPUT) {
@@ -291,58 +371,7 @@ void Scheduler::scheduleCPOP() {
         cur_idx = next_idx;
         back_task = tg_.tasks[next_idx];
     }
-
-    // schedule CPSet tasks using DP
-    std::vector<std::vector<float>> DP_table;
-    std::vector<std::vector<unsigned>> DP_trace;
-    for (auto CP_idx = 0; CP_idx < CPSet.size(); CP_idx++) {
-        std::vector<float> DP_table_col;
-        std::vector<unsigned> DP_trace_col;
-        auto cur_task = tg_.tasks[CPSet[CP_idx]];
-        for (auto fu_idx : p_.opt_fu_idx[cur_task.op.type]) {
-            float comp_time = cur_task.comp_size / p_.fu_info[fu_idx].speed;
-            if (CP_idx == 0) {
-                DP_table_col.push_back(comp_time);
-                DP_trace_col.push_back(0);
-            } else {
-                unsigned min_pre_idx = 0;
-                float min_time = FLT_MAX;
-                auto pre_task = tg_.tasks[CPSet[CP_idx - 1]];
-                for (auto pre_idx = 0; pre_idx < DP_table.back().size(); pre_idx++) {
-                    unsigned pre_fu_idx = p_.opt_fu_idx[pre_task.op.type][pre_idx];
-                    float comm_time = pre_task.out_size / p_.bandwidth[pre_fu_idx][fu_idx];
-                    if (comp_time + comm_time < min_time) {
-                        min_pre_idx = pre_idx;
-                        min_time = comp_time + comm_time;
-                    }
-                }
-                DP_table_col.push_back(min_time);
-                DP_trace_col.push_back(min_pre_idx);
-            }
-        }
-        DP_table.push_back(DP_table_col);
-        DP_trace.push_back(DP_trace_col);
-    }
-
-    // using DP trace assign fu to CP task
-    unsigned cp_pre_idx = 0;
-    for (auto task_idx = CPSet.size() - 1; task_idx > 0; task_idx--) {
-        auto cur_type = tg_.tasks[CPSet[task_idx]].op.type;
-        auto pre_type = tg_.tasks[CPSet[task_idx - 1]].op.type;
-        if (task_idx == CPSet.size() - 1) {
-            auto last_idx = std::max_element(DP_table[task_idx].begin(), DP_table[task_idx].end())
-                    - DP_table[task_idx].begin();
-            cp_pre_idx = DP_trace[task_idx][last_idx];
-            unsigned fu_idx = p_.opt_fu_idx[cur_type][last_idx];
-            unsigned pre_fu_idx = p_.opt_fu_idx[pre_type][cp_pre_idx];
-            tg_.tasks[CPSet[task_idx]].fu_idx = fu_idx;
-            tg_.tasks[CPSet[task_idx - 1]].fu_idx = pre_fu_idx;
-        } else {
-            cp_pre_idx = DP_trace[task_idx][cp_pre_idx];
-            unsigned pre_fu_idx = p_.opt_fu_idx[pre_type][cp_pre_idx];
-            tg_.tasks[CPSet[task_idx - 1]].fu_idx = pre_fu_idx;
-        }
-    }
+    setCPsetMinFu(CPSet);
 
     // processor selection
     std::vector<unsigned> unschedule_tasks = {0};
@@ -410,7 +439,7 @@ void Scheduler::scheduleCPOP() {
                     length = FLT_MAX;
                 else
                     length = fu_j.task_items[insert_pos].start_time - avail;
-                assert(avail <= min_avail);
+                // assert(avail <= min_avail);
                 float dura_length = cur_schedule_task.comp_size / fu_j.speed;
                 if (avail >= min_est && length >= dura_length) {
                     min_avail = avail;

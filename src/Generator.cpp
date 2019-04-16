@@ -515,6 +515,8 @@ void Generator::genSpeedTable(Processor &processor) {
         for (auto dst_idx = 0; dst_idx < processor.fu_info.size(); dst_idx++) {
             if (src_idx > dst_idx) {
                 src_speed_table.push_back(processor.bandwidth[dst_idx][src_idx]);
+            } else if (src_idx == dst_idx) {
+                src_speed_table.push_back(FLT_MAX);
             } else {
                 auto dst_thr_speed = fu_theory_speed_table[(int)processor.fu_info[dst_idx].op.type];
                 float theory_bandwidth = ccr * (src_thr_speed + dst_thr_speed) / 2;

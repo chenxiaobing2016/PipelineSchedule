@@ -1,5 +1,6 @@
 #include <iostream>
 #include <Metrics.h>
+#include <Partition.h>
 #include "Generator.h"
 #include "Scheduler.h"
 
@@ -7,8 +8,7 @@ using namespace std;
 
 void genTaskGraph(std::vector<TaskGraph>& task_graphs, Processor& processor, int nn = -1) {
   float input_size = 1000.0;
-  // int v = 1000;
-  int v = 1000;
+  int v = 20;
   float alpha = 0.5;  // (0, 1]
   int task_graph_nr = 3;
   int out_degree = 15;
@@ -24,10 +24,10 @@ void genTaskGraph(std::vector<TaskGraph>& task_graphs, Processor& processor, int
                                   speed_rate,
                                   ccr);
   if (nn == -1) {
-      test_generator.genRandomTaskDAGs();
-      test_generator.genDAGdots();
+    test_generator.genRandomTaskDAGs();
+    test_generator.genDAGdots();
   } else {
-      test_generator.genNNTaskDAG((NetType)nn);
+    test_generator.genNNTaskDAG((NetType)nn);
   }
   task_graphs = test_generator.getTaskGraphs();
 
@@ -43,13 +43,13 @@ void genTaskGraph(std::vector<TaskGraph>& task_graphs, Processor& processor, int
   // A2. ?
   int input_nr = 1;
   int output_nr = 1;
-  int conv_nr = 3;
-  int fc_nr = 3;
-  int pool_nr = 3;
-  int active_nr = 3;
-  int binary_nr = 3;
-  int concat_nr = 3;
-  int slice_nr = 3;
+  int conv_nr = 5;
+  int fc_nr = 5;
+  int pool_nr = 5;
+  int active_nr = 5;
+  int binary_nr = 5;
+  int concat_nr = 5;
+  int slice_nr = 5;
   vector<int> fu_nr = {input_nr, output_nr, conv_nr, pool_nr, fc_nr, active_nr, binary_nr, concat_nr, slice_nr};
   for (int op_idx = 0; op_idx < 9; op_idx++) {
     for (auto fu_idx = 0; fu_idx < fu_nr[op_idx]; fu_idx++) {
@@ -79,7 +79,7 @@ void configParams(TaskGraph& tg, Processor& processor) {
   processor.setAvgCommSpeedForOp2Op();
 }
 
-int main() {
+void partition_schedule_combine_test() {
   std::vector<TaskGraph> task_graphs;
   Processor processor;
   // NetType nn = LENET;
@@ -90,7 +90,7 @@ int main() {
   // genTaskGraph(task_graphs, processor, nn);
   genTaskGraph(task_graphs, processor);
   for (TaskGraph& tg : task_graphs) {
-      std::cout << "HEFT:" << std::endl;
+    std::cout << "HEFT:" << std::endl;
     configParams(tg, processor);
     // HEFT
     Scheduler heft = Scheduler(tg, processor);
@@ -105,11 +105,11 @@ int main() {
     std::cout << "HEFT speed up: " << speed_up_heft << std::endl;
 
     for (auto& fu : processor.fu_info) {
-        fu.clearTaskItem();
+      fu.clearTaskItem();
     }
     for (auto& task : tg.tasks) {
-        task.fu_idx = 0;
-        task.start_time = task.finish_time = -1;
+      task.fu_idx = 0;
+      task.start_time = task.finish_time = -1;
     }
 
     std::cout << "CPOP:" << std::endl;
@@ -128,8 +128,8 @@ int main() {
       fu.clearTaskItem();
     }
     for (auto& task : tg.tasks) {
-        task.fu_idx = 0;
-        task.start_time = task.finish_time = -1;
+      task.fu_idx = 0;
+      task.start_time = task.finish_time = -1;
     }
 
     // auto sp_tg = heft.splitTaskByHardwareNum(tg);
@@ -168,6 +168,57 @@ int main() {
     // }
     break;
   }
+}
 
+void iterative_schedule_partition_test() {
+  std::vector<TaskGraph> task_graphs;
+  Processor processor;
+  // NetType nn = LENET;
+  // NetType nn = ALEXNET;
+  // NetType nn = VGG16;
+  // NetType nn = GOOGLENET;
+  // NetType nn = RESNET18;
+  // genTaskGraph(task_graphs, processor, nn);
+  genTaskGraph(task_graphs, processor);
+  for (TaskGraph& tg : task_graphs) {
+    float min_serial_time = FLT_MAX;
+    for (int i = 0; i < 10; ++i) {
+      std::cout << "task number: " << tg.tasks.size() << std::endl;
+      for (auto &fu : processor.fu_info) {
+        fu.clearTaskItem();
+      }
+      configParams(tg, processor);
+      std::cout << "run heft..." << std::endl;
+      Scheduler heft = Scheduler(tg, processor);
+      heft.runHEFT();
+      heft.dumpScheduleResult();
+      heft.dumpTaskGraph();
+      TaskGraph sched_tg = heft.getScheduledTaskGraph();
+      Processor sched_p = heft.getScheduledProcessor();
+      if (i == 0) {
+        Metrics m = Metrics(tg, processor);
+        min_serial_time = m.getMinSerialTime();
+      }
+      float sched_time = heft.getScheduledTime();
+      float speed_up = min_serial_time / sched_time;
+      std::cout << "Sched time: " << sched_time << " serial time: " << min_serial_time << " HEFT speed up: " << speed_up << std::endl;
+      if (speed_up < 1.01) {
+        break;
+      }
+
+      std::cout << "run partition..." << std::endl;
+      Partition par = Partition(sched_tg, sched_p);
+      par.run();
+      tg = par.getPartitionTaskGraph();
+      processor = par.getProcessor();
+    }
+    break;
+  }
+}
+
+int main() {
+  // partition_schedule_combine_test();
+  iterative_schedule_partition_test();
   return 0;
 }
+

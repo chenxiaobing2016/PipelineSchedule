@@ -81,14 +81,16 @@ float Metrics::getMinSerialTime() {
       }
     }
   }
-  // std::cout << "Fu sum: " << p_.fu_info.size() << std::endl;
-  // std::cout << "Min time: " << min_time << std::endl;
-  // std::cout << "Fu config:" << std::endl;
-  // for (auto i : min_opt) {
-  //       std::cout << "Operation Type: " << toString(i.first)
-  //               << " Fu in: " << i.second
-  //               << std::endl;
-  // }
+#if 0
+  std::cout << "Fu sum: " << p_.fu_info.size() << std::endl;
+  std::cout << "Min time: " << min_time << std::endl;
+  std::cout << "Fu config:" << std::endl;
+  for (auto i : min_opt) {
+    std::cout << "Operation Type: " << toString(i.first)
+              << " Fu in: " << i.second
+              << std::endl;
+  }
+#endif
 
   return min_time;
  }

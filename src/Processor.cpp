@@ -1,3 +1,5 @@
+#include <iostream>
+#include <iomanip>
 #include "Processor.h"
 
 std::string toString(OperationType opt) {
@@ -87,28 +89,64 @@ bool TaskGraph::isAncestor(unsigned a, unsigned b) {
 
 void TaskGraph::setTaskRelation() {
   unsigned task_nr = tasks.size();
+  precedence.clear();
+  successor.clear();
   precedence.resize(task_nr, std::vector<unsigned>());
   successor.resize(task_nr, std::vector<unsigned>());
   for (unsigned src = 0u; src < tasks.size(); ++src) {
     for (unsigned dst = 0u; dst < tasks.size(); ++dst) {
-      if (src != dst && comm_size[src][dst] != -1) {
+      if (src != dst && comm_size[src][dst] > 1e-6) {
+        // std::cout << "src: " << src << " dst: " << dst \
+                  << " " << comm_size[src][dst] << std::endl;
         successor[src].push_back(dst);
         precedence[dst].push_back(src);
       }
     }
   }
 
+#if 0
+  std::cout << "precedence:" << std::endl;
+  for (unsigned idx = 0u; idx < tasks.size(); ++idx) {
+    std::cout << idx << std::endl;
+    for (unsigned i = 0; i < precedence[idx].size(); ++i) {
+      std::cout << " " << precedence[idx][i] << " " << idx
+                << " comm size " << comm_size[precedence[idx][i]][idx] << std::endl;
+    }
+  }
+  std::cout << "successor:" << std::endl;
+  for (unsigned idx = 0u; idx < tasks.size(); ++idx) {
+    std::cout << idx << std::endl;
+    for (unsigned i = 0; i < successor[idx].size(); ++i) {
+      std::cout << " " << idx << " " << successor[idx][i]
+                << " comm size " << comm_size[idx][successor[idx][i]] << std::endl;
+    }
+  }
+#endif
   entry = exit = -1;
   unsigned entry_cnt = 0, exit_cnt = 0;
   for (unsigned idx = 0u; idx < tasks.size(); ++idx) {
     if (precedence[idx].size() == 0) {
       ++entry_cnt;
       entry = idx;
+      // std::cout << "entry: " << entry_cnt << " " << idx << std::endl;
     }
     if (successor[idx].size() == 0) {
       ++exit_cnt;
       exit = idx;
+      // std::cout << "exit: " << exit_cnt << " " << idx << std::endl;
     }
   }
+#if 0
+  for (unsigned i = 0; i < comm_size.size(); ++i) {
+    for (unsigned j = 0; j < comm_size.size(); ++j) {
+      std::cout << std::setw(5) << comm_size[i][j] << " ";
+    }
+    if (successor[i].size() > 0) {
+      std::cout << std::setw(5) << successor[i].size() << " " << successor[i][0] << std::endl;
+    } else {
+      std::cout << std::setw(5) << successor[i].size() << " " << std::endl;
+    }
+  }
+#endif
   assert(entry_cnt == 1 && exit_cnt == 1);
 }

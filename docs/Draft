@@ -1,0 +1,43 @@
+Background
+1. 深度学习被广泛使用，其具有对算力要求较高的特点，由此衍生出各种专用加速器；
+2. 基于以后处理器的调度策略被广泛研究；
+3. 对基于深度学习和专用处理器的任务调度策略的研究很有意义。
+
+Motivation
+对于深度学习任务，每个子任务可以拆分成多个子任务，利用这一特性可以做更细粒度的任务拆分和调度；
+对于某些专用处理器，会为不同类型的运算设置专用处理单元，不同运算只能使用对应类型的处理器；
+
+Contribution
+针对功能部件数量和相关参数可配置的专用处理器，迁移并改良了一套对应的调度算法；
+针对神经网络运算，利用已拆分这一特性，设计了通用的拆分策略，可以配合调度模块完成更细粒度的拆分。
+
+Our Model
+专用处理器包括M个处理单元，可以完成N类运算类型，对于任务task type i，可以运算的处理单元的个数为fu_i，满足M = sum{fu_i}。
+使用矩阵COMM[M][M]表示任意两个处理单元之间数据传输的带宽。
+使用COMP[M]表示任一处理单元的执行速度。
+
+Problem Description
+对于一个神经网络，可以使用一张有向无环图表示，每个节点表示一个运算，节点之间的边表示运算之间需要传输的数据量。
+对于节点Ni,其前驱用PRED(i)表示，其后继用SUCC(i)表示，节点属性包括运算类型、运算量属性、输出数据量。
+如何将此任务分配到不同的运算单元上，使得任务的总执行时间尽可能短。
+
+Solution
+只考虑调度的算法：
+HEFT
+CPOP
+综合考虑拆分和调度:
+fine-grained PSC
+Iterative schedule and critical parition Algo.
+
+Experiment
+实验数据
+1. 网络数据：常用神经网络、随机网络
+2. 专用处理器参数 alpha ccr ...
+
+Evaluation
+1. algorithm complexity
+2. speed up
+3. TBA
+
+Further work
+Task multi-level memory organization into consideration.

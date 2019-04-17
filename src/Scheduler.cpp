@@ -566,3 +566,11 @@ void Scheduler::concatTaskOnSameFu() {
         }
     }
 }
+
+float Scheduler::getScheduledTime() {
+  float schedule_time = 0;
+  for (unsigned task_id = 0u; task_id < tg_.tasks.size(); ++task_id) {
+    schedule_time = std::max(schedule_time, tg_.tasks[task_id].finish_time);
+  }
+  return schedule_time;
+}

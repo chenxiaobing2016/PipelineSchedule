@@ -25,6 +25,7 @@ public:
   // and concat tasks split from same task and schedule on the same fu
   TaskGraph splitTaskByHardwareNum(TaskGraph tg);
   void concatTaskOnSameFu();
+  float getScheduledTime();
 
 private:
   // reckon average computational cost for each task.

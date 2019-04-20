@@ -505,8 +505,8 @@ void Generator::genSpeedTable(Processor &processor) {
             ot == OUTPUT) {
             processor.fu_info[fu_idx].speed = FLT_MAX;
         } else {
-            processor.fu_info[fu_idx].speed = fu_theory_speed_table[(int)ot];
-            // processor.fu_info[fu_idx].speed = dis_0_5_1_5(gen) * fu_theory_speed_table[(int)ot];
+          // processor.fu_info[fu_idx].speed = dis_0_5_1_5(gen) * fu_theory_speed_table[(int)ot];
+          processor.fu_info[fu_idx].speed = fu_theory_speed_table[(int)ot];
         }
     }
 
@@ -519,11 +519,11 @@ void Generator::genSpeedTable(Processor &processor) {
             } else if (src_idx == dst_idx) {
                 src_speed_table.push_back(FLT_MAX);
             } else {
-                auto dst_thr_speed = fu_theory_speed_table[(int)processor.fu_info[dst_idx].op.type];
-                float theory_bandwidth = ccr * (src_thr_speed + dst_thr_speed) / 2;
-                float true_bandwidth = theory_bandwidth;
-                // float true_bandwidth = dis_0_5_1_5(gen) * theory_bandwidth;
-                src_speed_table.push_back(true_bandwidth);
+              auto dst_thr_speed = fu_theory_speed_table[(int)processor.fu_info[dst_idx].op.type];
+              float theory_bandwidth = ccr * (src_thr_speed + dst_thr_speed) / 2;
+              // float true_bandwidth = dis_0_5_1_5(gen) * theory_bandwidth;
+              float true_bandwidth = theory_bandwidth;
+              src_speed_table.push_back(true_bandwidth);
             }
         }
         processor.bandwidth.push_back(src_speed_table);

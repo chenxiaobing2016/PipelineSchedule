@@ -18,11 +18,10 @@ public:
 
   void tryPartition(std::vector<unsigned> critical_path, float& profit, unsigned& partition_nr, unsigned& task_id);
 
-  // void getCriticalPath(std::vector<std::vector<unsigned>>& critical_path,
-  //                      std::vector<unsigned> partial_path);
-  void getCriticalPath(std::vector<unsigned>& critical_path,
-                       std::vector<unsigned> partial_path,
-                       float critical_cost, float partial_cost);
+  // void getCriticalPath(std::vector<unsigned>& critical_path,
+  //                      std::vector<unsigned> partial_path,
+  //                      float critical_cost, float partial_cost);
+  void getCriticalPath(std::vector<unsigned>& critical_path);
 
   std::vector<unsigned> getFreeFU(OperationType op, float start, float finish);
 

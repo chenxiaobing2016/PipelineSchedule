@@ -40,7 +40,6 @@ float Metrics::getMinSerialTime() {
       }
     }
   }
-
   std::unordered_map<OperationType, unsigned> opt_base;
   std::unordered_map<OperationType, unsigned> opt_idx;
   std::unordered_map<OperationType, unsigned> opt_size;

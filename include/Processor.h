@@ -23,6 +23,8 @@ enum NetType {
     RESNET18
 };
 
+std::string netTypeToString(NetType nt);
+
 enum OperationType {
   INPUT = 0,
   OUTPUT = 1,
@@ -132,6 +134,8 @@ struct TaskGraph {
   // set precedence successor for each task,
   // and set entry/exit point for the graph.
   void setTaskRelation();
+
+  void showCommSize();
 };
 
 

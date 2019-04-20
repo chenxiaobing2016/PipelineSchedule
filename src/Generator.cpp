@@ -505,7 +505,8 @@ void Generator::genSpeedTable(Processor &processor) {
             ot == OUTPUT) {
             processor.fu_info[fu_idx].speed = FLT_MAX;
         } else {
-            processor.fu_info[fu_idx].speed = dis_0_5_1_5(gen) * fu_theory_speed_table[(int)ot];
+            processor.fu_info[fu_idx].speed = fu_theory_speed_table[(int)ot];
+            // processor.fu_info[fu_idx].speed = dis_0_5_1_5(gen) * fu_theory_speed_table[(int)ot];
         }
     }
 
@@ -520,7 +521,8 @@ void Generator::genSpeedTable(Processor &processor) {
             } else {
                 auto dst_thr_speed = fu_theory_speed_table[(int)processor.fu_info[dst_idx].op.type];
                 float theory_bandwidth = ccr * (src_thr_speed + dst_thr_speed) / 2;
-                float true_bandwidth = dis_0_5_1_5(gen) * theory_bandwidth;
+                float true_bandwidth = theory_bandwidth;
+                // float true_bandwidth = dis_0_5_1_5(gen) * theory_bandwidth;
                 src_speed_table.push_back(true_bandwidth);
             }
         }
@@ -574,34 +576,42 @@ void Generator::genNNTaskDAG(NetType nn) {
     auto &comm_size = net.comm_size;
     auto set_task = [&](int idx, OperationType ot, float in_size,
             float out_size, float comp_size, float min_size) {
-        nn_tasks[idx].in_size = in_size;
-        nn_tasks[idx].out_size = out_size;
-        nn_tasks[idx].comp_size = comp_size;
-        nn_tasks[idx].op.type = ot;
-        nn_tasks[idx].op.min_size = min_size;
+      nn_tasks[idx].in_size = in_size;
+      nn_tasks[idx].out_size = out_size;
+      nn_tasks[idx].comp_size = comp_size;
+      nn_tasks[idx].punish_comp_size = 0.0;
+      nn_tasks[idx].punish_io_size = 0.0;
+      nn_tasks[idx].op.type = ot;
+      nn_tasks[idx].op.min_size = min_size;
     };
     auto set_conv = [&](int idx, int hi_m_wi, int ho_m_wo, int ci, int co,
                         int kx_m_ky) {
-        nn_tasks[idx].op.type = CONV;
-        nn_tasks[idx].op.min_size = kx_m_ky * ci;
-        nn_tasks[idx].in_size = hi_m_wi * ci;
-        nn_tasks[idx].out_size = ho_m_wo * co;
-        nn_tasks[idx].comp_size = ho_m_wo * co * kx_m_ky * ci;
+      nn_tasks[idx].op.type = CONV;
+      nn_tasks[idx].op.min_size = kx_m_ky * ci;
+      nn_tasks[idx].in_size = hi_m_wi * ci;
+      nn_tasks[idx].out_size = ho_m_wo * co;
+      nn_tasks[idx].comp_size = ho_m_wo * co * kx_m_ky * ci;
+      nn_tasks[idx].punish_comp_size = kx_m_ky * co * ci * pow(ho_m_wo, 0.5);
+      nn_tasks[idx].punish_io_size = kx_m_ky * pow(co * ci, 0.5) * pow(hi_m_wi * ho_m_wo, 0.25);
     };
     auto set_pool = [&](int idx, int hi_m_wi, int ho_m_wo, int ci, int co,
                         int kx_m_ky) {
-        nn_tasks[idx].op.type = POOL;
-        nn_tasks[idx].op.min_size = kx_m_ky * ci;
-        nn_tasks[idx].in_size = hi_m_wi * ci;
-        nn_tasks[idx].out_size = ho_m_wo * co;
-        nn_tasks[idx].comp_size = ho_m_wo * co * kx_m_ky;
+      nn_tasks[idx].op.type = POOL;
+      nn_tasks[idx].op.min_size = kx_m_ky * ci;
+      nn_tasks[idx].in_size = hi_m_wi * ci;
+      nn_tasks[idx].out_size = ho_m_wo * co;
+      nn_tasks[idx].comp_size = ho_m_wo * co * kx_m_ky;
+      nn_tasks[idx].punish_comp_size = kx_m_ky * co * pow(ho_m_wo, 0.5);
+      nn_tasks[idx].punish_io_size = kx_m_ky * pow(co * ci, 0.5) * pow(hi_m_wi * ho_m_wo, 0.25);
     };
     auto set_fc = [&](int idx, int ci, int co) {
-        nn_tasks[idx].op.type = FC;
-        nn_tasks[idx].op.min_size = ci;
-        nn_tasks[idx].in_size = ci;
-        nn_tasks[idx].out_size = co;
-        nn_tasks[idx].comp_size = co * ci;
+      nn_tasks[idx].op.type = FC;
+      nn_tasks[idx].op.min_size = ci;
+      nn_tasks[idx].in_size = ci;
+      nn_tasks[idx].out_size = co;
+      nn_tasks[idx].comp_size = co * ci;
+      nn_tasks[idx].punish_comp_size = 0.0;
+      nn_tasks[idx].punish_io_size = 0.0;
     };
     auto set_line_link = [&](unsigned start_id, unsigned finish_id) {
         if (comm_size.empty()) {

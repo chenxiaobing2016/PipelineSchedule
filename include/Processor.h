@@ -99,6 +99,8 @@ struct TaskNode {
   float in_size;
   float out_size;
   float comp_size;
+  float punish_comp_size;
+  float punish_io_size;
   Operation op;
 
   unsigned ori_idx;

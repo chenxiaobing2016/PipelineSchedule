@@ -592,7 +592,7 @@ void Generator::genNNTaskDAG(NetType nn) {
       nn_tasks[idx].out_size = ho_m_wo * co;
       nn_tasks[idx].comp_size = ho_m_wo * co * kx_m_ky * ci;
       nn_tasks[idx].punish_comp_size = kx_m_ky * co * ci * pow(ho_m_wo, 0.5);
-      nn_tasks[idx].punish_io_size = kx_m_ky * pow(co * ci, 0.5) * pow(hi_m_wi * ho_m_wo, 0.25);
+      nn_tasks[idx].punish_io_size = kx_m_ky * pow(co * ci, 0.5) * pow((float)hi_m_wi * ho_m_wo, 0.25);
     };
     auto set_pool = [&](int idx, int hi_m_wi, int ho_m_wo, int ci, int co,
                         int kx_m_ky) {
@@ -602,7 +602,7 @@ void Generator::genNNTaskDAG(NetType nn) {
       nn_tasks[idx].out_size = ho_m_wo * co;
       nn_tasks[idx].comp_size = ho_m_wo * co * kx_m_ky;
       nn_tasks[idx].punish_comp_size = kx_m_ky * co * pow(ho_m_wo, 0.5);
-      nn_tasks[idx].punish_io_size = kx_m_ky * pow(co * ci, 0.5) * pow(hi_m_wi * ho_m_wo, 0.25);
+      nn_tasks[idx].punish_io_size = kx_m_ky * pow(co * ci, 0.5) * pow((float)hi_m_wi * ho_m_wo, 0.25);
     };
     auto set_fc = [&](int idx, int ci, int co) {
       nn_tasks[idx].op.type = FC;
@@ -852,6 +852,142 @@ void Generator::genNNTaskDAG(NetType nn) {
         set_task(last_idx+3, OUTPUT, 1000, 1000, 1000, 1);
         set_line_link(85, 88);
         assert(last_idx == 85);
+    } else if(nn == RESNET50) {
+      auto res_block = [&](unsigned src, int ci, int hi_m_wi, int ho_m_wo, int co1, int co2, bool branch) -> unsigned {
+        set_conv(src+1, hi_m_wi, ho_m_wo, ci, co1, 1*1);
+        set_task(src+2, ACTIVE, ho_m_wo*co1, ho_m_wo*co1, ho_m_wo*co1, co1);
+        set_task(src+3, ACTIVE, ho_m_wo*co1, ho_m_wo*co1, ho_m_wo*co1, co1);
+        set_task(src+4, ACTIVE, ho_m_wo*co1, ho_m_wo*co1, ho_m_wo*co1, 1);
+        set_conv(src+5, ho_m_wo, ho_m_wo, co1, co1, 3*3);
+        set_task(src+6, ACTIVE, ho_m_wo*co1, ho_m_wo*co1, ho_m_wo*co1, co1);
+        set_task(src+7, ACTIVE, ho_m_wo*co1, ho_m_wo*co1, ho_m_wo*co1, co1);
+        set_task(src+8, ACTIVE, ho_m_wo*co1, ho_m_wo*co1, ho_m_wo*co1, 1);
+        set_conv(src+9, ho_m_wo, ho_m_wo, co1, co2, 1*1);
+        set_task(src+10, ACTIVE, ho_m_wo*co2, ho_m_wo*co2, ho_m_wo*co2, co2);
+        set_task(src+11, ACTIVE, ho_m_wo*co2, ho_m_wo*co2, ho_m_wo*co2, co2);
+        set_line_link(src+1, src+11);
+        if (branch) {
+          set_conv(src+12, hi_m_wi, ho_m_wo, ci, co2, 1*1);
+          set_task(src+13, ACTIVE, ho_m_wo*co2, ho_m_wo*co2, ho_m_wo*co2, co2);
+          set_task(src+14, ACTIVE, ho_m_wo*co2, ho_m_wo*co2, ho_m_wo*co2, co2);
+          set_line_link(src+12, src+14);
+          set_source_link(src, {src+1, src+12});
+          set_task(src+15, BINARY, 0, 0, 0, 0);
+          set_sink_link(src+15, {src+11, src+14});
+          set_task(src+16, ACTIVE, ho_m_wo*co2, ho_m_wo*co2, ho_m_wo*co2, 1);
+          set_line_link(src+15, src+16);
+          return src+16;
+        } else {
+          set_line_link(src, src+1);
+          set_task(src+12, BINARY, 0, 0, 0, 0);
+          set_sink_link(src+12, {src, src+11});
+          set_task(src+13, ACTIVE, ho_m_wo*co2, ho_m_wo*co2, ho_m_wo*co2, 1);
+          set_line_link(src+12, src+13);
+          return src+13;
+        }
+      };
+      nn_tasks.resize(215);
+      set_task(0, INPUT, 224*224*3, 224*224*3, 224*224*3, 1);
+      set_conv(1, 224*224, 112*112, 3, 64, 7*7);
+      set_task(2, ACTIVE, 112*112*64, 112*112*64, 112*112*64, 64);
+      set_task(3, ACTIVE, 112*112*64, 112*112*64, 112*112*64, 1);
+      set_task(4, ACTIVE, 112*112*64, 112*112*64, 112*112*64, 1);
+      set_pool(5, 112*112, 56*56, 64, 64, 3*3);
+      set_line_link(0, 5);
+
+      // 2a
+      int last_id;
+      last_id = res_block(5, 64, 56*56, 56*56, 64, 256, true);
+      assert(last_id == 21);
+      // 2b
+      last_id = res_block(last_id, 256, 56*56, 56*56, 64, 256, false);
+      assert(last_id == 34);
+      // 2c
+      last_id = res_block(last_id, 256, 56*56, 56*56, 64, 256, false);
+      assert(last_id == 47);
+      // 3a
+      last_id = res_block(last_id, 256, 56*56, 28*28, 128, 512, true);
+      assert(last_id == 63);
+      // 3b
+      last_id = res_block(last_id, 512, 28*28, 28*28, 128, 512, false);
+      assert(last_id == 76);
+      // 3c
+      last_id = res_block(last_id, 512, 28*28, 28*28, 128, 512, false);
+      assert(last_id == 89);
+      // 3d
+      last_id = res_block(last_id, 512, 28*28, 28*28, 128, 512, false);
+      assert(last_id == 102);
+      // 4a
+      last_id = res_block(last_id, 512, 28*28, 14*14, 256, 1024, true);
+      assert(last_id == 118);
+      // 4b
+      last_id = res_block(last_id, 1024, 14*14, 14*14, 256, 1024, false);
+      assert(last_id == 131);
+      // 4c
+      last_id = res_block(last_id, 1024, 14*14, 14*14, 256, 1024, false);
+      assert(last_id == 144);
+      // 4d
+      last_id = res_block(last_id, 1024, 14*14, 14*14, 256, 1024, false);
+      assert(last_id == 157);
+      // 4e
+      last_id = res_block(last_id, 1024, 14*14, 14*14, 256, 1024, false);
+      assert(last_id == 170);
+      // 4f
+      last_id = res_block(last_id, 1024, 14*14, 7*7, 512, 2048, true);
+      assert(last_id == 186);
+      // 5a
+      last_id = res_block(last_id, 2048, 7*7, 7*7, 512, 2048, false);
+      assert(last_id == 199);
+      // 5b
+      last_id = res_block(last_id, 2048, 7*7, 7*7, 512, 2048, false);
+      assert(last_id == 212);
+
+      set_pool(last_id+1, 7*7, 1*1, 2048, 2048, 7*7);
+      set_task(last_id+2, OUTPUT, 1000, 1000, 1000, 1);
+      set_line_link(212, 214);
+    } else if (nn == VGG19) {
+      auto conv2_block = [&](unsigned src, int hi_m_wi, int ci, int co) -> unsigned {
+        int ho_m_wo = hi_m_wi / 4;
+        set_conv(src+1, hi_m_wi, hi_m_wi, ci, co, 3*3);
+        set_task(src+2, ACTIVE, hi_m_wi*co, hi_m_wi*co, hi_m_wi*co, co);
+        set_conv(src+3, hi_m_wi, hi_m_wi, co, co, 3*3);
+        set_task(src+4, ACTIVE, hi_m_wi*co, hi_m_wi*co, hi_m_wi*co, co);
+        set_pool(src+5, hi_m_wi, ho_m_wo, co, co, 2*2);
+        set_line_link(src, src+5);
+        return src+5;
+      };
+      auto conv4_block = [&](unsigned src, int hi_m_wi, int ci, int co) -> unsigned {
+        int ho_m_wo = hi_m_wi / 4;
+        set_conv(src+1, hi_m_wi, hi_m_wi, ci, co, 3*3);
+        set_task(src+2, ACTIVE, hi_m_wi*co, hi_m_wi*co, hi_m_wi*co, co);
+        set_conv(src+3, hi_m_wi, hi_m_wi, co, co, 3*3);
+        set_task(src+4, ACTIVE, hi_m_wi*co, hi_m_wi*co, hi_m_wi*co, co);
+        set_conv(src+5, hi_m_wi, hi_m_wi, co, co, 3*3);
+        set_task(src+6, ACTIVE, hi_m_wi*co, hi_m_wi*co, hi_m_wi*co, co);
+        set_conv(src+7, hi_m_wi, hi_m_wi, co, co, 3*3);
+        set_task(src+8, ACTIVE, hi_m_wi*co, hi_m_wi*co, hi_m_wi*co, co);
+        set_pool(src+9, hi_m_wi, ho_m_wo, co, co, 2*2);
+        set_line_link(src, src+9);
+        return src+9;
+      };
+      unsigned last_id;
+      nn_tasks.resize(44);
+      set_task(0, INPUT, 224*224*3, 224*224*3, 224*224*3, 1);
+      last_id = conv2_block(0, 224*224, 64, 64);
+      last_id = conv2_block(last_id, 112*112, 64, 128);
+      last_id = conv4_block(last_id, 56*56, 128, 256);
+      last_id = conv4_block(last_id, 28*28, 256, 512);
+      last_id = conv4_block(last_id, 14*14, 512, 512);
+      assert(last_id == 37);
+      set_fc(38, 512*7*7, 4096);
+      set_task(39, ACTIVE, 4096, 4096, 4096, 1);
+      set_fc(40, 4096, 4096);
+      set_task(41, ACTIVE, 4096, 4096, 4096, 1);
+      set_fc(42, 4096, 3);
+      set_task(43, OUTPUT, 3, 3, 3, 1);
+      set_line_link(37, 43);
+    } else if (nn == INCEPTIONV3) {
+
     } else {
         cout << "not support nn" << endl;
         assert(0);

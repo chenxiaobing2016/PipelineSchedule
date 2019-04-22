@@ -19,8 +19,11 @@ enum NetType {
     LENET,
     ALEXNET,
     VGG16,
+    VGG19,
     GOOGLENET,
-    RESNET18
+    INCEPTIONV3,
+    RESNET18,
+    RESNET50,
 };
 
 std::string netTypeToString(NetType nt);

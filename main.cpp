@@ -76,9 +76,11 @@ void partition_schedule_combine_test() {
   // NetType nn = LENET;
   // NetType nn = ALEXNET;
   // NetType nn = VGG16;
+  NetType nn = VGG19;
   // NetType nn = GOOGLENET;
-  NetType nn = RESNET18;
-  genTaskGraph(task_graphs, processor, nn);
+  // NetType nn = RESNET18;
+  // NetType nn = RESNET50;
+  genTaskGraph(task_graphs, processor, 1, (int)nn);
   // genTaskGraph(task_graphs, processor);
   for (TaskGraph& tg : task_graphs) {
     std::cout << "HEFT:" << std::endl;
@@ -123,40 +125,40 @@ void partition_schedule_combine_test() {
       task.start_time = task.finish_time = -1;
     }
 
-    // auto sp_tg = heft.splitTaskByHardwareNum(tg);
-    // configParams(sp_tg, processor);
-    // // HEFT + split
-    // auto sp_heft = Scheduler(sp_tg, processor);
-    // sp_heft.runHEFT();
-    // TaskGraph sched_tg_sp_heft = sp_heft.getScheduledTaskGraph();
-    // Processor sched_p_sp_heft = sp_heft.getScheduledProcessor();
+    auto sp_tg = heft.splitTaskByHardwareNum(tg);
+    configParams(sp_tg, processor);
+    // HEFT + split
+    auto sp_heft = Scheduler(sp_tg, processor);
+    sp_heft.runHEFT();
+    TaskGraph sched_tg_sp_heft = sp_heft.getScheduledTaskGraph();
+    Processor sched_p_sp_heft = sp_heft.getScheduledProcessor();
 
-    // Metrics m_sp_heft = Metrics(sched_tg_sp_heft, sched_p_sp_heft);
-    // float speed_up_sp_heft = m_sp_heft.getSppedUp();
-    // std::cout << "sp HEFT speed up: " << speed_up_sp_heft << std::endl;
-    // for (auto& fu : processor.fu_info) {
-    //     fu.clearTaskItem();
-    // }
-    // for (auto& task : sp_tg.tasks) {
-    //     task.fu_idx = 0;
-    //     task.start_time = task.finish_time = -1;
-    // }
-    // // CPOP + split
-    // auto sp_cpop = Scheduler(sp_tg, processor);
-    // sp_cpop.runCPOP();
-    // TaskGraph sched_tg_sp_cpop = sp_cpop.getScheduledTaskGraph();
-    // Processor sched_p_sp_cpop = sp_cpop.getScheduledProcessor();
+    Metrics m_sp_heft = Metrics(sched_tg_sp_heft, sched_p_sp_heft);
+    float speed_up_sp_heft = m_sp_heft.getSppedUp();
+    std::cout << "sp HEFT speed up: " << speed_up_sp_heft << std::endl;
+    for (auto& fu : processor.fu_info) {
+        fu.clearTaskItem();
+    }
+    for (auto& task : sp_tg.tasks) {
+        task.fu_idx = 0;
+        task.start_time = task.finish_time = -1;
+    }
+    // CPOP + split
+    auto sp_cpop = Scheduler(sp_tg, processor);
+    sp_cpop.runCPOP();
+    TaskGraph sched_tg_sp_cpop = sp_cpop.getScheduledTaskGraph();
+    Processor sched_p_sp_cpop = sp_cpop.getScheduledProcessor();
 
-    // Metrics m_sp_cpop = Metrics(sched_tg_sp_cpop, sched_p_sp_cpop);
-    // float speed_up_sp_cpop = m_sp_cpop.getSppedUp();
-    // std::cout << "sp CPOP speed up: " << speed_up_sp_cpop << std::endl;
-    // for (auto& fu : processor.fu_info) {
-    //     fu.clearTaskItem();
-    // }
-    // for (auto& task : sp_tg.tasks) {
-    //     task.fu_idx = 0;
-    //     task.start_time = task.finish_time = -1;
-    // }
+    Metrics m_sp_cpop = Metrics(sched_tg_sp_cpop, sched_p_sp_cpop);
+    float speed_up_sp_cpop = m_sp_cpop.getSppedUp();
+    std::cout << "sp CPOP speed up: " << speed_up_sp_cpop << std::endl;
+    for (auto& fu : processor.fu_info) {
+        fu.clearTaskItem();
+    }
+    for (auto& task : sp_tg.tasks) {
+        task.fu_idx = 0;
+        task.start_time = task.finish_time = -1;
+    }
     break;
   }
 }
@@ -254,7 +256,7 @@ void iterative_schedule_partition_test() {
 #endif
 
 int main() {
-  // partition_schedule_combine_test();
-  iterative_schedule_partition_test();
+  partition_schedule_combine_test();
+  // iterative_schedule_partition_test();
   return 0;
 }

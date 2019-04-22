@@ -506,20 +506,19 @@ TaskGraph Scheduler::splitTaskByHardwareNum(TaskGraph tg) {
           auto &pre_task = old_tasks[pre_idx];
           auto &suc_task = old_tasks[suc_idx];
           if (pre_task.out_size != suc_task.in_size) {
-            complete = false;
             if (suc_task.op.type == CONCAT || suc_task.op.type == BINARY) {
               float whole_size = 0.0;
               for (auto suc_pre_idx = 0; suc_pre_idx < old_tasks.size(); suc_pre_idx++) {
                 if (tg.comm_size[suc_pre_idx][suc_idx] >= 0)
-                  whole_size += tg.comm_size[suc_pre_idx][suc_idx];
+                  whole_size += old_tasks[suc_pre_idx].out_size;
               }
-              if (whole_size == suc_task.in_size) {
-                complete = true;
-              } else {
+              if (whole_size != suc_task.in_size) {
                 suc_task.in_size = whole_size;
                 tg.comm_size[pre_idx][suc_idx] = pre_task.out_size;
+                complete = false;
               }
             } else {
+              complete = false;
               auto max_size = std::max(pre_task.out_size, suc_task.in_size);
               pre_task.out_size = max_size;
               suc_task.in_size = max_size;

@@ -1,0 +1,30 @@
+1. format our model and problem.                                                                             4.22
+2. try to proof this problem is NP-complete.                                                                 4.26
+3. figure out algorithm complexity.                                                                          4.26
+3. add punishment for Iterative Schedule Partition Algorithm.                                                4.23
+4. add metrics for experiment.                                                                               4.25
+5. get experiment result (stochastic neural network and typical models) and show them with charts or graphs. 4.27
+6. explain experimental phenomena with the characteristics of algorithms.                                    4.29
+
+
+Schedule and Partition Algorithms for Neural Network Accelerators
+
+Abstract                                         4.24
+Neural networks show an overwhelmed superiority in several artificial intelligent domains, such as image recognition, speech recognition, natural language  processing. But the computation complexity of NN models are
+much higher. To handle this problem, many accelerators have been invented, including fpga-based and ASICs. Among these accelerators, part of them are function-unit configurable. But How to leverage the high performance
+of hardware in software level remains a significant problem. In this paper, we proposed related algorithms to leverage nn characteristics and the configurable characteristic to optimize task schedule.
+
+Introduction                                     4.24
+1. neural networks are widely used;
+2.
+Related work                                     4.24
+Design                                           4.26
+Experiments and Results                          4.29
+Conclusion and FutureWork                        4.29
+References                                       4.29
+
+To be enriched:
+1. investigate specific neural network accelerators which is similar to our model.
+2. investigate schedule algorithms and partition algorithms.
+3. references.
+4. scheduling algorithms for neural networks.

@@ -987,7 +987,219 @@ void Generator::genNNTaskDAG(NetType nn) {
       set_task(43, OUTPUT, 3, 3, 3, 1);
       set_line_link(37, 43);
     } else if (nn == INCEPTIONV3) {
+      auto conv_block = [&](int src, int ci, int hi_m_wi, int co, int ho_m_wo, int kx_m_ky) -> unsigned {
+        set_conv(src, hi_m_wi, ho_m_wo, ci, co, kx_m_ky);
+        set_task(src+1, ACTIVE, ho_m_wo*co, ho_m_wo*co, hi_m_wi*co, co);
+        set_task(src+2, ACTIVE, ho_m_wo*co, ho_m_wo*co, hi_m_wi*co, co);
+        set_task(src+3, ACTIVE, ho_m_wo*co, ho_m_wo*co, hi_m_wi*co, co);
+        set_line_link(src, src+3);
+        return src+3;
+      };
+      auto conv_block_7 = [&](int src, int ci) -> unsigned {
+        unsigned b1_s = src + 1;
+        unsigned b1_e = conv_block(b1_s, ci, 47*47, 64, 47*47, 1*1);
 
+        unsigned b2_1_s = b1_e + 1;
+        unsigned b2_1_e = conv_block(b2_1_s, ci, 47*47, 48, 47*47, 5*5);
+        unsigned b2_2_s = b2_1_e + 1;
+        unsigned b2_2_e = conv_block(b2_2_s, 48, 47*47, 64, 47*47, 5*5);
+        set_line_link(b2_1_e, b2_2_s);
+
+        unsigned b3_1_s = b2_2_e + 1;
+        unsigned b3_1_e = conv_block(b3_1_s, ci, 47*47, 64, 47*47, 3*3);
+        unsigned b3_2_s = b3_1_e + 1;
+        unsigned b3_2_e = conv_block(b3_2_s, 64, 47*47, 96, 47*47, 3*3);
+        set_line_link(b3_1_e, b3_2_s);
+        unsigned b3_3_s = b3_2_e + 1;
+        unsigned b3_3_e = conv_block(b3_3_s, 96, 47*47, 96, 47*47, 3*3);
+        set_line_link(b3_2_e, b3_3_s);
+
+        unsigned b4_1_s = b3_3_e + 1;
+        set_pool(b4_1_s, 47*47, 47*47, ci, ci, 3*3);
+        unsigned b4_2_s = b4_1_s + 1;
+        unsigned b4_2_e = conv_block(b4_2_s, ci, 47*47, 32, 47*47, 1*1);
+        set_line_link(b4_1_s, b4_2_s);
+
+        set_source_link(src, {b1_s, b2_1_s, b3_1_s, b4_1_s});
+        unsigned dst = b4_2_e + 1;
+        set_task(dst, CONCAT, 0, 0, 0, 0);
+        set_sink_link(dst, {b1_e, b2_2_e, b3_3_e, b4_2_e});
+        return dst;
+      };
+      auto conv_block_4 = [&](int src, int ci) -> unsigned {
+        unsigned b1_s = src + 1;
+        unsigned b1_e = conv_block(b1_s, ci, 47*47, 384, 23*23, 3*3);
+
+        unsigned b2_1_s = b1_e + 1;
+        unsigned b2_1_e = conv_block(b2_1_s, ci, 47*47, 64, 47*47, 3*3);
+        unsigned b2_2_s = b2_1_e + 1;
+        unsigned b2_2_e = conv_block(b2_2_s, 64, 47*47, 96, 47*47, 3*3);
+        set_line_link(b2_1_e, b2_2_s);
+        unsigned b2_3_s = b2_2_e + 1;
+        unsigned b2_3_e = conv_block(b2_3_s, 96, 47*47, 96, 23*23, 3*3);
+        set_line_link(b2_2_e, b2_3_s);
+
+        unsigned b3_1_s = b2_3_e + 1;
+        set_pool(b3_1_s, 47*47, 47*47, ci, ci, 3*3);
+
+        set_source_link(src, {b1_s, b2_1_s, b3_1_s});
+        unsigned dst = b3_1_s + 1;
+        set_task(dst, CONCAT, 0, 0, 0, 0);
+        set_sink_link(dst, {b1_e, b2_3_e, b3_1_s});
+        return dst;
+      };
+      auto conv_block_10 = [&](int src, int ci) -> unsigned {
+        unsigned b1_s = src + 1;
+        unsigned b1_e = conv_block(b1_s, ci, 23*23, 192, 23*23, 1*1);
+
+        unsigned b2_1_s = b1_e + 1;
+        unsigned b2_1_e = conv_block(b2_1_s, ci, 23*23, 128, 23*23, 1*1);
+        unsigned b2_2_s = b2_1_e + 1;
+        unsigned b2_2_e = conv_block(b2_2_s, 128, 23*23, 128, 23*23, 1*7);
+        set_line_link(b2_1_e, b2_2_s);
+        unsigned b2_3_s = b2_2_e + 1;
+        unsigned b2_3_e = conv_block(b2_3_s, 128, 23*23, 192, 23*23, 7*1);
+        set_line_link(b2_2_e, b2_3_s);
+
+        unsigned b3_1_s = b2_3_e + 1;
+        unsigned b3_1_e = conv_block(b3_1_s, ci, 23*23, 128, 23*23, 1*1);
+        unsigned b3_2_s = b3_1_e + 1;
+        unsigned b3_2_e = conv_block(b3_2_s, 128, 23*23, 128, 23*23, 7*1);
+        set_line_link(b3_1_e, b3_2_s);
+        unsigned b3_3_s = b3_2_e + 1;
+        unsigned b3_3_e = conv_block(b3_3_s, 128, 23*23, 128, 23*23, 1*7);
+        set_line_link(b3_2_e, b3_3_s);
+        unsigned b3_4_s = b3_3_e + 1;
+        unsigned b3_4_e = conv_block(b3_4_s, 128, 23*23, 128, 23*23, 7*1);
+        set_line_link(b3_3_e, b3_4_s);
+        unsigned b3_5_s = b3_4_e + 1;
+        unsigned b3_5_e = conv_block(b3_5_s, 128, 23*23, 192, 23*23, 1*7);
+        set_line_link(b3_4_e, b3_5_s);
+
+        unsigned b4_1_s = b3_5_e + 1;
+        set_pool(b4_1_s, 23*23, 23*23, ci, ci, 3*3);
+        unsigned b4_2_s = b4_1_s + 1;
+        unsigned b4_2_e = conv_block(b4_2_s, ci, 23*23, 192, 23*23, 1*1);
+        set_line_link(b4_1_s, b4_2_s);
+
+        set_source_link(src, {b1_s, b2_1_s, b3_1_s, b4_1_s});
+        unsigned dst = b4_2_e + 1;
+        set_task(dst, CONCAT, 0, 0, 0, 0);
+        set_sink_link(dst, {b1_e, b2_3_e, b3_5_e, b4_2_e});
+        return dst;
+      };
+      auto conv_block_6 = [&](int src, int ci) -> unsigned {
+        unsigned b1_1_s = src + 1;
+        unsigned b1_1_e = conv_block(b1_1_s, ci, 23*23, 192, 23*23, 3*3);
+        unsigned b1_2_s = b1_1_e + 1;
+        unsigned b1_2_e = conv_block(b1_2_s, 192, 23*23, 320, 11*11, 3*3);
+        set_line_link(b1_1_e, b1_2_s);
+
+        unsigned b2_1_s = b1_2_e + 1;
+        unsigned b2_1_e = conv_block(b2_1_s, ci, 23*23, 192, 23*23, 1*1);
+        unsigned b2_2_s = b2_1_e + 1;
+        unsigned b2_2_e = conv_block(b2_2_s, 192, 23*23, 192, 23*23, 1*7);
+        set_line_link(b2_1_e, b2_2_s);
+        unsigned b2_3_s = b2_2_e + 1;
+        unsigned b2_3_e = conv_block(b2_3_s, 192, 23*23, 192, 23*23, 7*1);
+        set_line_link(b2_2_e, b2_3_s);
+        unsigned b2_4_s = b2_3_e + 1;
+        unsigned b2_4_e = conv_block(b2_4_s, 192, 23*23, 192, 11*11, 3*3);
+        set_line_link(b2_3_e, b2_4_s);
+
+        unsigned b3_1_s = b2_4_e + 1;
+        set_pool(b3_1_s, 23*23, 11*11, ci, ci, 3*3);
+
+        set_source_link(src, {b1_1_s, b2_1_s, b3_1_s});
+        unsigned dst = b3_1_s + 1;
+        set_task(dst, CONCAT, 0, 0, 0, 0);
+        set_sink_link(dst, {b1_2_e, b2_4_e, b3_1_s});
+        return dst;
+      };
+      auto conv_block_9 = [&](int src, int ci) -> unsigned {
+        unsigned b1_s = src + 1;
+        unsigned b1_e = conv_block(b1_s, ci, 11*11, 320, 11*11, 1*1);
+
+        unsigned b2_1_s = b1_e + 1;
+        unsigned b2_1_e = conv_block(b2_1_s, ci, 11*11, 384, 11*11, 1*1);
+        unsigned b2_2_s = b2_1_e + 1;
+        unsigned b2_2_e = conv_block(b2_2_s, 384, 11*11, 384, 11*11, 1*3);
+        unsigned b2_3_s = b2_2_e + 1;
+        unsigned b2_3_e = conv_block(b2_3_s, 384, 11*11, 384, 11*11, 3*1);
+        set_source_link(b2_1_e, {b2_2_s, b2_3_s});
+
+        unsigned b3_1_s = b2_3_e + 1;
+        unsigned b3_1_e = conv_block(b3_1_s, ci, 11*11, 448, 11*11, 1*1);
+        unsigned b3_2_s = b3_1_e + 1;
+        unsigned b3_2_e = conv_block(b3_2_s, 448, 11*11, 384, 11*11, 3*3);
+        set_line_link(b3_1_e, b3_2_s);
+        unsigned b3_3_s = b3_2_e + 1;
+        unsigned b3_3_e = conv_block(b3_3_s, 384, 11*11, 384, 11*11, 1*3);
+        unsigned b3_4_s = b3_3_e + 1;
+        unsigned b3_4_e = conv_block(b3_4_s, 384, 11*11, 384, 11*11, 3*1);
+        set_source_link(b3_2_e, {b3_3_s, b3_4_s});
+
+        unsigned b4_1_s = b3_4_e + 1;
+        set_pool(b4_1_s, 11*11, 11*11, ci, ci, 3*3);
+        unsigned b4_2_s = b4_1_s + 1;
+        unsigned b4_2_e = conv_block(b4_2_s, ci, 11*11, 192, 11*11, 1*1);
+        set_line_link(b4_1_s, b4_2_s);
+
+        set_source_link(src, {b1_s, b2_1_s, b3_1_s, b4_1_s});
+        unsigned dst = b4_2_e + 1;
+        set_task(dst, CONCAT, 0, 0, 0, 0);
+        set_sink_link(dst, {b1_e, b2_2_e, b2_3_e, b3_3_e, b3_4_e, b4_2_e});
+        return dst;
+      };
+      nn_tasks.resize(404);
+      unsigned last_id;
+      set_task(0, INPUT, 1*3*395*295, 1*3*395*395, 1*3*395*395, 1);
+      last_id = conv_block(1, 3, 395*395, 32, 197*197, 3*3);
+      assert(last_id == 4);
+      set_line_link(0, 1);
+      last_id = conv_block(last_id + 1, 32, 197*197, 32, 195*195, 3*3);
+      assert(last_id == 8);
+      set_line_link(4, 5);
+      last_id = conv_block(last_id + 1, 32, 195*195, 64, 195*195, 3*3);
+      assert(last_id == 12);
+      set_line_link(8, 9);
+      set_pool(13, 195*195, 97*97, 64, 64, 3*3);
+      last_id = conv_block(14, 64, 97*97, 80, 97*97, 1*1);
+      assert(last_id == 17);
+      set_line_link(12, 14);
+      last_id = conv_block(last_id + 1, 80, 97*97, 192, 95*95, 3*3);
+      assert(last_id == 21);
+      set_line_link(17, 18);
+      set_pool(22, 195*195, 47*47, 192, 192, 3*3);
+      set_line_link(21, 22);
+      last_id = 22;
+
+      last_id = conv_block_7(last_id, 192);
+      assert(last_id == 52);
+      last_id = conv_block_7(last_id, 256);
+      assert(last_id == 82);
+      last_id = conv_block_7(last_id, 256);
+      assert(last_id == 112);
+      last_id = conv_block_4(last_id, 256);
+      assert(last_id == 130);
+      last_id = conv_block_10(last_id, 768);
+      assert(last_id == 172);
+      last_id = conv_block_10(last_id, 768);
+      assert(last_id == 214);
+      last_id = conv_block_10(last_id, 768);
+      assert(last_id == 256);
+      last_id = conv_block_10(last_id, 768);
+      assert(last_id == 298);
+      last_id = conv_block_6(last_id, 768);
+      assert(last_id == 324);
+      last_id = conv_block_9(last_id, 1280);
+      assert(last_id == 362);
+      last_id = conv_block_9(last_id, 2048);
+      assert(last_id == 400);
+      set_pool(401, 11*11, 1*1, 2048, 2048, 11*11);
+      set_fc(402, 2048, 3);
+      set_task(403, OUTPUT, 3, 3, 3, 1);
+      set_line_link(400, 403);
     } else {
         cout << "not support nn" << endl;
         assert(0);

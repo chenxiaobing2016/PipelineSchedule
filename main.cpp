@@ -167,7 +167,8 @@ void iterative_schedule_partition_test() {
   std::ofstream fout("result");
   std::vector<TaskGraph> task_graphs;
   Processor processor;
-  for (unsigned net_type = 0; net_type < 5; ++net_type) {
+  for (unsigned net_type = 0; net_type <= 7; ++net_type) {
+    // if (net_type == 5) continue;
     for (unsigned fu_nr = 1; fu_nr <= 10; ++fu_nr) {
       fout << "Net Type: " << netTypeToString(NetType(net_type)) << " FU Number: " << fu_nr << std::endl;
       float min_serial_time = FLT_MAX;
@@ -178,7 +179,7 @@ void iterative_schedule_partition_test() {
       genTaskGraph(task_graphs, processor, fu_nr, net_type);
 
       auto tg = task_graphs.at(0);
-      float pre_speedup = 0;
+      // float pre_speedup = 0;
       for (unsigned iter_nr = 0; iter_nr < 20; ++iter_nr) {
         for (auto &fu : processor.fu_info) {
           fu.clearTaskItem();
@@ -197,15 +198,15 @@ void iterative_schedule_partition_test() {
         }
         float sched_time = heft.getScheduledTime();
         float speed_up = min_serial_time / sched_time;
-        if (speed_up == pre_speedup) {
-          break;
-        }
+        // if (speed_up == pre_speedup) {
+        //   break;
+        // }
         fout << "Iter: " << iter_nr << " Scheduled Time: " << sched_time << " Speed up: " << speed_up << std::endl;
         Partition par = Partition(sched_tg, sched_p);
         par.run();
         tg = par.getPartitionTaskGraph();
         processor = par.getProcessor();
-        pre_speedup = speed_up;
+        // pre_speedup = speed_up;
       }
     }
   }
@@ -256,7 +257,7 @@ void iterative_schedule_partition_test() {
 #endif
 
 int main() {
-  partition_schedule_combine_test();
-  // iterative_schedule_partition_test();
+  // partition_schedule_combine_test();
+  iterative_schedule_partition_test();
   return 0;
 }

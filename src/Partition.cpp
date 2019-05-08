@@ -12,43 +12,17 @@ void Partition::run() {
   // std::cout << "critical_path size: " << critical_path.size() << std::endl;
   assert(critical_path.size() > 0);
 
-  float profit = 0;
   unsigned task_id = -1, partition_nr = 1;
 
   if (critical_path.size() > 2) {
-    tryPartition(critical_path, profit, partition_nr, task_id);
+    tryPartition(critical_path, partition_nr, task_id);
   }
   // std::cout << "Partition nr: " << partition_nr << std::endl;
   if (partition_nr > 1) {
     taskPartition(partition_nr, task_id);
   }
 }
-#if 0
-void Partition::run() {
-  std::vector<std::vector<unsigned>> critical_path;
-  getCriticalPath(critical_path, std::vector<unsigned>({tg_.entry}));
-  std::cout << "critical_path size: " << critical_path.size() << std::endl;
-  assert(critical_path.size() > 0);
 
-  float profit = 0;
-  unsigned task_id = -1, partition_nr = 1;
-  for (unsigned path_idx = 0; path_idx < critical_path.size(); ++path_idx) {
-    float tmp_profit = 0;
-    unsigned tmp_partition_nr = 1, tmp_task_id = -1;
-    if (critical_path[path_idx].size() > 2) {
-      tryPartition(critical_path[path_idx], tmp_profit, tmp_partition_nr, tmp_task_id);
-    }
-    if (profit < tmp_profit) {
-      profit = tmp_profit;
-      task_id = tmp_task_id;
-      partition_nr = tmp_partition_nr;
-    }
-  }
-  if (partition_nr > 1) {
-    taskPartition(partition_nr, task_id);
-  }
-}
-#endif
 void showCommSize(std::vector<std::vector<float>> comm_size) {
   for (unsigned i = 0; i < comm_size.size(); ++i) {
     for (unsigned j = 0; j < comm_size.size(); ++j) {
@@ -59,8 +33,27 @@ void showCommSize(std::vector<std::vector<float>> comm_size) {
 }
 
 void Partition::taskPartition(unsigned partition_nr, unsigned task_id) {
+  if (partition_nr == 1) { return; }
   TaskNode task = tg_.tasks[task_id];
   std::vector<TaskNode> rep_tasks = std::vector<TaskNode>(partition_nr, task);
+
+  for (unsigned idx = 0; idx < tg_.precedence[task_id].size(); ++idx) {
+    unsigned pre_idx = tg_.precedence[task_id][idx];
+    float inc_size = tg_.comm_size[pre_idx][task_id] / tg_.tasks[task_id].in_size * partition_nr * tg_.tasks[task_id].punish_io_size;
+    tg_.comm_size[pre_idx][task_id] += inc_size;
+    tg_.tasks[pre_idx].out_size += inc_size;
+  }
+
+  for (unsigned idx = 0; idx < tg_.successor[task_id].size(); ++idx) {
+    unsigned succ_idx = tg_.successor[task_id][idx];
+    float inc_size = tg_.comm_size[task_id][succ_idx] / tg_.tasks[task_id].out_size * partition_nr * tg_.tasks[task_id].punish_io_size;
+    tg_.comm_size[task_id][succ_idx] += inc_size;
+    tg_.tasks[succ_idx].out_size += inc_size;
+  }
+  tg_.tasks[task_id].in_size = partition_nr * tg_.tasks[task_id].punish_io_size;
+  tg_.tasks[task_id].out_size = partition_nr * tg_.tasks[task_id].punish_io_size;
+  tg_.tasks[task_id].comp_size = partition_nr * tg_.tasks[task_id].punish_comp_size;
+
   for (unsigned idx = 0; idx < partition_nr; ++idx) {
     rep_tasks[idx].in_size /= partition_nr;
     rep_tasks[idx].comp_size /= partition_nr;
@@ -98,7 +91,9 @@ void Partition::taskPartition(unsigned partition_nr, unsigned task_id) {
   for (unsigned pre_idx = 0; pre_idx < tg_.precedence[task_id].size(); ++pre_idx) {
     pre_comm_size += tg_.comm_size[tg_.precedence[task_id][pre_idx]][task_id];
   }
+  // TODO pre_comm_size += partition_nr * tg_.tasks[task_id].punish_io_size;
   pre_comm_size /= partition_nr;
+
   unsigned pre_idx = 0;
   float pre_remin_size = tg_.comm_size[tg_.precedence[task_id][pre_idx]][task_id];
   for (int i = 0; i < partition_nr; ++i) {
@@ -139,18 +134,6 @@ void Partition::taskPartition(unsigned partition_nr, unsigned task_id) {
       pre_remin_size -= in_size;
     }
   }
-#if 0
-  for (unsigned pre_idx = 0; pre_idx < tg_.precedence[task_id].size(); ++pre_idx) {
-    unsigned idx = tg_.precedence[task_id][pre_idx];
-    for (int i = 0; i < partition_nr; ++i) {
-      if (idx < task_id) {
-        comm_size[idx][tg_.tasks.size() + i - 1] = tg_.comm_size[idx][task_id] / partition_nr;
-      } else {
-        comm_size[idx - 1][tg_.tasks.size() + i - 1] = tg_.comm_size[idx][task_id] / partition_nr;
-      }
-    }
-  }
-#endif
 
   float succ_comm_size = 0;
   for (unsigned succ_idx = 0; succ_idx < tg_.successor[task_id].size(); ++succ_idx) {
@@ -215,48 +198,129 @@ void Partition::taskPartition(unsigned partition_nr, unsigned task_id) {
   tg_.setTaskRelation();
 }
 
-void Partition::tryPartition(std::vector<unsigned> critical_path, float& profit, unsigned& partition_nr, unsigned& task_id) {
-  profit = 0;
+void Partition::tryPartition(std::vector<unsigned> critical_path, unsigned& partition_nr, unsigned& task_id) {
+  float profit = 0;
   for (unsigned path_task_idx = 1; path_task_idx < critical_path.size() - 1; ++path_task_idx) {
-    float start_time, finish_time;
-    unsigned tmp_task_id = critical_path[path_task_idx];
-    start_time  = tg_.tasks[tmp_task_id].start_time;
-    finish_time = tg_.tasks[tmp_task_id].finish_time;
-    // float pre_curr_comm_time = tg_.tasks[tmp_task_id].in_size / p_.bandwidth[tg_.tasks[critical_path[path_task_idx - 1]].fu_idx][tg_.tasks[tmp_task_id].fu_idx];
-    // float execute_time = tg_.tasks[tmp_task_id].comp_size / p_.fu_info[tmp_task_id].speed;
-    // float curr_succ_comm_time = tg_.tasks[critical_path[path_task_idx + 1]].in_size / p_.bandwidth[tg_.tasks[tmp_task_id].fu_idx][tg_.tasks[critical_path[path_task_idx + 1]].fu_idx];
-    std::vector<unsigned> fus = getFreeFU(tg_.tasks[tmp_task_id].op.type, start_time, finish_time);
-    // std::cout << "Free fu number: " << fus.size() << std::endl;
+    unsigned pre_task_id = critical_path[path_task_idx - 1];
+    unsigned curr_task_id = critical_path[path_task_idx];
+    unsigned post_task_id = critical_path[path_task_idx + 1];
+
+    unsigned pre_fu_idx = tg_.tasks[pre_task_id].fu_idx;
+    unsigned curr_fu_idx = tg_.tasks[curr_task_id].fu_idx;
+    unsigned post_fu_idx = tg_.tasks[post_task_id].fu_idx;
+
+    float start_time  = tg_.tasks[curr_task_id].start_time;
+    float finish_time = tg_.tasks[curr_task_id].finish_time;
+    std::vector<unsigned> fus = getFreeFU(tg_.tasks[curr_task_id].op.type, start_time, finish_time);
+    fus.push_back(curr_fu_idx);
+
     std::vector<FU> fu_info = p_.fu_info;
     std::sort(fus.begin(), fus.end(), [&fu_info](unsigned a, unsigned b){ return fu_info[a].speed > fu_info[b].speed; });
-    // std::cout << "min size: " << tg_.tasks[tmp_task_id].op.min_size << std::endl;
-    // int max_partition_nr = (int)(tg_.tasks[tmp_task_id].in_size / tg_.tasks[tmp_task_id].op.min_size);
     int max_partition_nr = INT_MAX;
-    // std::cout << "Max partition nr: " << max_partition_nr << std::endl;
     while (fus.size() > max_partition_nr) { fus.pop_back(); }
-    float speed_sum = p_.fu_info[tg_.tasks[tmp_task_id].fu_idx].speed;
-    for (unsigned fu_idx = 0; fu_idx < fus.size(); ++fu_idx) {
-      speed_sum += p_.fu_info[fus[fu_idx]].speed;
+
+    float in_comm_size = tg_.comm_size[pre_task_id][curr_task_id];
+    float out_comm_size = tg_.comm_size[curr_task_id][post_task_id];
+    float comp_size = tg_.tasks[curr_task_id].comp_size;
+
+    float in_comm_time = 0, out_comm_time = 0, comp_time = 0;
+    float in_bandwidth = p_.bandwidth[pre_fu_idx][curr_fu_idx];
+    float out_bandwidth = p_.bandwidth[curr_fu_idx][post_fu_idx];
+    if (in_bandwidth > 0) {
+      in_comm_time = in_comm_size / in_bandwidth;
     }
-    float tmp_profit = finish_time - start_time - tg_.tasks[tmp_task_id].comp_size / speed_sum;
+    if (out_bandwidth > 0) {
+      out_comm_time = out_comm_size / out_bandwidth;
+    }
+    comp_time = comp_size / p_.fu_info[curr_fu_idx].speed;
+
+    float p_in_comm_time = 0, p_out_comm_time = 0, p_comp_time = 0;
+    unsigned nr = fus.size();
+    for (unsigned i = 0; i < nr; ++i) {
+      unsigned fu_idx = fus[i];
+      if (p_.bandwidth[pre_fu_idx][fu_idx] > 0) {
+        p_in_comm_time = std::max(p_in_comm_time, (in_comm_size / nr + tg_.tasks[curr_task_id].punish_io_size) / p_.bandwidth[pre_fu_idx][fu_idx]);
+      }
+      if (p_.bandwidth[fu_idx][post_fu_idx] > 0) {
+        p_out_comm_time = std::max(p_out_comm_time, (out_comm_size / nr + tg_.tasks[curr_task_id].punish_io_size) / p_.bandwidth[fu_idx][post_fu_idx]);
+      }
+      p_comp_time = std::max(p_comp_time, (comp_size / nr + tg_.tasks[curr_task_id].punish_comp_size) / p_.fu_info[fu_idx].speed);
+    }
+    float tmp_profit = in_comm_time + comp_time + out_comm_time - (p_in_comm_time + p_comp_time + p_out_comm_time);
     if (tmp_profit > profit) {
       profit = tmp_profit;
-      partition_nr = fus.size() + 1;
-      task_id = tmp_task_id;
+      partition_nr = nr;
+      task_id = curr_task_id;
     }
   }
 }
 
 void Partition::getCriticalPath(std::vector<unsigned> &critical_path) {
-  float max_cost = FLT_MAX;
   std::vector<std::vector<unsigned>> succ = tg_.successor;
   std::vector<std::vector<unsigned>::iterator> pos;
   std::vector<std::vector<unsigned>::iterator> pos_end;
-  std::vector<float> step_cost;
 
   auto& entry_succ = succ[tg_.entry];
-  // pos.push_back(succ[tg_.entry].begin());
-  // pos_end.push_back(succ[tg_.entry].end());
+  pos.push_back(entry_succ.begin());
+  pos_end.push_back(entry_succ.end());
+  while (true) {
+    bool status = true;
+    while (*(pos.back()) != tg_.exit) {
+      assert(succ[*pos.back()].size() > 0);
+      auto& succ_vec = succ[*(pos.back())];
+      pos.push_back(succ_vec.begin());
+      pos_end.push_back(succ_vec.end());
+      unsigned curr_task_id = *(pos.back());
+      unsigned pre_task_id;
+      if (pos.size() == 1) {
+        pre_task_id = tg_.entry;
+      } else {
+        pre_task_id = **(std::prev(pos.end(), 2));
+      }
+      float start_time = tg_.tasks[curr_task_id].start_time;
+      float pre_end_time = tg_.tasks[pre_task_id].finish_time;
+
+      float comm_time = 0;
+      float comm_size = tg_.comm_size[pre_task_id][curr_task_id];
+      float bandwidth = p_.bandwidth[tg_.tasks[pre_task_id].fu_idx][tg_.tasks[curr_task_id].fu_idx];
+      if (bandwidth > 0) {
+        comm_time = comm_size / bandwidth;
+      }
+      if (std::abs(pre_end_time + comm_time - start_time) > 1e-4) {
+        status = false;
+        break;
+      }
+    }
+    if (status) {
+      critical_path.clear();
+      for (auto i : pos) {
+        critical_path.push_back(*i);
+      }
+      return;
+    }
+    while (std::next(pos.back()) == pos_end.back()) {
+      pos.pop_back();
+      pos_end.pop_back();
+    }
+    if (pos.empty()) {
+      break;
+    } else {
+      ++pos.back();
+    }
+  }
+
+  // }
+  //
+  // void Partition::getCriticalPath(std::vector<unsigned> &critical_path) {
+
+  float max_cost = FLT_MAX;
+  succ = tg_.successor;
+  pos.clear();
+  pos_end.clear();
+  critical_path.clear();
+  std::vector<float> step_cost;
+
+  entry_succ = succ[tg_.entry];
   pos.push_back(entry_succ.begin());
   pos_end.push_back(entry_succ.end());
   float curr_path_cost = 0;
@@ -265,8 +329,6 @@ void Partition::getCriticalPath(std::vector<unsigned> &critical_path) {
     while (*(pos.back()) != tg_.exit) {
       assert(succ[*pos.back()].size() > 0);
       auto& succ_vec = succ[*(pos.back())];
-      // pos.push_back(succ[*(pos.back())].begin());
-      // pos_end.push_back(succ[*(pos.back())].end());
       pos.push_back(succ_vec.begin());
       pos_end.push_back(succ_vec.end());
       float tmp_step_cost = tg_.tasks[*(pos.back())].comp_size / p_.fu_info[tg_.tasks[*(pos.back())].fu_idx].speed;
@@ -312,71 +374,6 @@ void Partition::getCriticalPath(std::vector<unsigned> &critical_path) {
   }
 }
 
-#if 0
-void Partition::getCriticalPath(std::vector<unsigned>& critical_path,
-                                std::vector<unsigned> partial_path,
-                                float critical_cost, float partial_cost) {
-  if (partial_path.empty()) {
-    partial_path.push_back(tg_.entry);
-    partial_cost = 0;
-  }
-  if (partial_path.back() == tg_.exit) {
-    if (partial_cost > critical_cost) {
-      critical_path = partial_path;
-      critical_cost = partial_cost;
-    }
-    return;
-  }
-  for (unsigned i = 0; i < tg_.successor[partial_path.back()].size(); ++i) {
-    unsigned back_task_id = partial_path.back();
-    unsigned curr_task_id = tg_.successor[back_task_id][i];
-    TaskNode back_task = tg_.tasks[back_task_id];
-    TaskNode curr_task = tg_.tasks[curr_task_id];
-    float bandwidth = p_.bandwidth[tg_.tasks[back_task_id].fu_idx][tg_.tasks[curr_task_id].fu_idx];
-    float comm_size = tg_.comm_size[back_task_id][curr_task_id];
-    float comm_time = comm_size / bandwidth;
-    float start_time = curr_task.start_time;
-    float finish_time = curr_task.finish_time;
-    partial_path.push_back(curr_task_id);
-    partial_cost += (finish_time - start_time) + comm_time;
-    getCriticalPath(critical_path, partial_path, critical_cost, partial_cost);
-    partial_cost -= (finish_time - start_time) + comm_time;
-    partial_path.pop_back();
-  }
-}
-#endif
-
-#if 0
-void Partition::getCriticalPath(std::vector<std::vector<unsigned>>& critical_path,
-                     std::vector<unsigned> partial_path) {
-  if (partial_path.empty()) {
-    partial_path.push_back(tg_.entry);
-  }
-  if (partial_path.back() == tg_.exit) {
-    critical_path.push_back(partial_path);
-    return;
-  }
-  for (unsigned i = 0; i < tg_.successor[partial_path.back()].size(); ++i) {
-    unsigned back_task_id = partial_path.back();
-    unsigned curr_task_id = tg_.successor[back_task_id][i];
-    TaskNode back_task = tg_.tasks[back_task_id];
-    TaskNode curr_task = tg_.tasks[curr_task_id];
-    float back_finish_time = back_task.finish_time;
-    float start_time = curr_task.start_time;
-    float bandwidth = p_.bandwidth[tg_.tasks[back_task_id].fu_idx][tg_.tasks[curr_task_id].fu_idx];
-    float comm_size = tg_.comm_size[back_task_id][curr_task_id];
-    float comm_time = comm_size / bandwidth;
-    if (std::abs(back_finish_time + comm_time - start_time) < 1e-6) {
-      partial_path.push_back(curr_task_id);
-      getCriticalPath(critical_path, partial_path);
-      partial_path.pop_back();
-    //  } else {
-    //    std::cout << tg_.exit << " " <<back_task_id << " " << curr_task_id << " " << std::abs(back_finish_time + comm_time - start_time) << std::endl;
-    }
-  }
-}
-#endif
-
 std::vector<unsigned> Partition::getFreeFU(OperationType op, float start, float finish) {
   std::vector<unsigned> ret;
   for (unsigned idx = 0; idx < p_.opt_fu_idx[op].size(); ++idx) {
@@ -384,14 +381,6 @@ std::vector<unsigned> Partition::getFreeFU(OperationType op, float start, float 
     unsigned fu_idx = p_.opt_fu_idx[op][idx];
     auto items = p_.fu_info[fu_idx].task_items;
     for (unsigned i = 0; i < items.size(); ++i) {
-#if 0
-      std::cout << "start: " << start << " finish: " << finish
-                << " start time: " << items[i].start_time
-                << " finish time: " << items[i].finish_time
-                << " result: " <<
-                               ((items[i].start_time < start && items[i].finish_time > start)
-          || (items[i].start_time < finish && items[i].finish_time > finish)) << std::endl;
-#endif
 
       if ((items[i].start_time - 1e-6 < start && items[i].finish_time + 1e-6 > start)
           || (items[i].start_time - 1e-6 < finish && items[i].finish_time + 1e-6 > finish)) {

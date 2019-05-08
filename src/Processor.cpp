@@ -4,12 +4,15 @@
 
 std::string netTypeToString(NetType nt) {
   switch (nt) {
-    case LENET     : return std::string("LENET");
-    case ALEXNET   : return std::string("ALEXNET");
-    case VGG16     : return std::string("VGG16");
-    case GOOGLENET : return std::string("GOOGLENET");
-    case RESNET18  : return std::string("RESNET18");
-    default        : return std::string("UNKNOWN Layer");
+    case LENET       : return std::string("LENET");
+    case ALEXNET     : return std::string("ALEXNET");
+    case VGG16       : return std::string("VGG16");
+    case VGG19       : return std::string("VGG19");
+    case GOOGLENET   : return std::string("GOOGLENET");
+    case INCEPTIONV3 : return std::string("INCEPTIONV3");
+    case RESNET18    : return std::string("RESNET18");
+    case RESNET50    : return std::string("RESNET50");
+    default          : return std::string("UNKNOWN Layer");
   }
 }
 
